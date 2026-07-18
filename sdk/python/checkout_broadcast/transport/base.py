@@ -1,0 +1,13 @@
+from typing import Callable, Protocol
+
+from checkout_broadcast.protocol import SignedPacket
+
+
+class BroadcastTransport(Protocol):
+    def start_send(self) -> None: ...
+
+    def start_receive(self, on_packet: Callable[[SignedPacket], None]) -> None: ...
+
+    def broadcast(self, packet: SignedPacket) -> None: ...
+
+    def stop(self) -> None: ...

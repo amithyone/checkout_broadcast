@@ -1,0 +1,22 @@
+services:
+  bank-api:
+    build: .
+    ports:
+      - "8090:8090"
+    environment:
+      CHECKOUT_BANK_HOST: "0.0.0.0"
+      CHECKOUT_BANK_PORT: "8090"
+      CHECKOUT_BANK_ADMIN_KEY: "change-me-before-production"
+      CHECKOUT_BANK_DB: "/data/checkout_bank.db"
+      CHECKOUT_CORS_ORIGINS: "http://localhost:8080,http://127.0.0.1:8080"
+      CHECKOUT_BIND_PUBLIC: "true"
+    volumes:
+      - bank-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8090/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  bank-data:

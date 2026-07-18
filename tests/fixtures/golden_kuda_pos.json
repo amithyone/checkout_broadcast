@@ -1,0 +1,22 @@
+{
+  "description": "Golden vector for Kuda wallet SDK authors — POS-KUDA-001, ₦2,500",
+  "signing_key": "test-signing-key-min-16-chars",
+  "bank_name": "kuda",
+  "payload": {
+    "protocol_version": 2.0,
+    "timestamp_ms": 1720000000000,
+    "session_uuid_v4": "550e8400-e29b-41d4-a716-446655440002",
+    "terminal_id": "POS-KUDA-001",
+    "transaction_details": {
+      "currency_code": "NGN",
+      "total_amount_ngn": 2500,
+      "item_count": 1
+    },
+    "account_info_public_display": {
+      "bank_name_hash": "sha256:1ab138fd89d4c060074875dcad06de1701ccaa6f94a67dfd9ca65e8496202f7a",
+      "masked_account_suffix": "***9876"
+    }
+  },
+  "signature_alg": "HMAC-SHA256",
+  "signature": "EpNDDvxj9SmbSYR4JiDb7eZ+3rF1yCAC7LorzjyrHLU="
+}

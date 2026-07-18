@@ -1,0 +1,22 @@
+{
+  "description": "Golden vector for OPay wallet SDK authors — POS-OPAY-001, ₦1,500",
+  "signing_key": "test-signing-key-min-16-chars",
+  "bank_name": "opay",
+  "payload": {
+    "protocol_version": 2.0,
+    "timestamp_ms": 1720000000000,
+    "session_uuid_v4": "550e8400-e29b-41d4-a716-446655440001",
+    "terminal_id": "POS-OPAY-001",
+    "transaction_details": {
+      "currency_code": "NGN",
+      "total_amount_ngn": 1500,
+      "item_count": 1
+    },
+    "account_info_public_display": {
+      "bank_name_hash": "sha256:35b00ceedd49b4a4b6770f50a93d9611089f6b0863d0dccd756972c719ee6056",
+      "masked_account_suffix": "***9876"
+    }
+  },
+  "signature_alg": "HMAC-SHA256",
+  "signature": "wWhBywUUIxPnZUq9Sf/qFg5H3mqW8u8jbhSglXGpK8M="
+}

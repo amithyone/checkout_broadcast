@@ -1,0 +1,20 @@
+{
+  "payload": {
+    "protocol_version": 2.0,
+    "timestamp_ms": 1720000000000,
+    "session_uuid_v4": "550e8400-e29b-41d4-a716-446655440000",
+    "terminal_id": "POS-LAG-001",
+    "transaction_details": {
+      "currency_code": "NGN",
+      "total_amount_ngn": 2500,
+      "item_count": 3
+    },
+    "account_info_public_display": {
+      "bank_name_hash": "sha256:1ab138fd89d4c060074875dcad06de1701ccaa6f94a67dfd9ca65e8496202f7a",
+      "masked_account_suffix": "***9876"
+    }
+  },
+  "signature_alg": "HMAC-SHA256",
+  "signing_key": "dev-signing-key-change-in-production",
+  "expected_signature": "uJrzmfISPTiGKA6T/g5xnQoWAOZxQCwRFElAV3/76QM="
+}

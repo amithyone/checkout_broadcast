@@ -1,0 +1,22 @@
+{
+  "description": "Golden vector for GTBank wallet SDK authors — POS-GTB-001, ₦8,750",
+  "signing_key": "test-signing-key-min-16-chars",
+  "bank_name": "gtbank",
+  "payload": {
+    "protocol_version": 2.0,
+    "timestamp_ms": 1720000000000,
+    "session_uuid_v4": "550e8400-e29b-41d4-a716-446655440003",
+    "terminal_id": "POS-GTB-001",
+    "transaction_details": {
+      "currency_code": "NGN",
+      "total_amount_ngn": 8750,
+      "item_count": 1
+    },
+    "account_info_public_display": {
+      "bank_name_hash": "sha256:f1654e1b41f9e9f4c102b0c7c38da156ba294820039f3ca1f024c8365ea88846",
+      "masked_account_suffix": "***9876"
+    }
+  },
+  "signature_alg": "HMAC-SHA256",
+  "signature": "aGY74atkVlhinUTbavzcrKMcQBDwp6yfKNgOXbuW2Qs="
+}

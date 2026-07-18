@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://checkout-broadcast.dev/spec/protocol-v2.schema.json",
+  "title": "Checkout Broadcast Protocol v2.0",
+  "definitions": {
+    "TransactionDetails": {
+      "type": "object",
+      "required": ["currency_code", "total_amount_ngn", "item_count"],
+      "properties": {
+        "currency_code": { "type": "string", "const": "NGN" },
+        "total_amount_ngn": { "type": "integer", "minimum": 1 },
+        "item_count": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "AccountInfoPublicDisplay": {
+      "type": "object",
+      "required": ["bank_name_hash", "masked_account_suffix"],
+      "properties": {
+        "bank_name_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "masked_account_suffix": { "type": "string", "pattern": "^\\*{3}[0-9]{4}$" }
+      },
+      "additionalProperties": false
+    },
+    "Payload": {
+      "type": "object",
+      "required": [
+        "protocol_version",
+        "timestamp_ms",
+        "session_uuid_v4",
+        "terminal_id",
+        "transaction_details",
+        "account_info_public_display"
+      ],
+      "properties": {
+        "protocol_version": { "type": "number", "const": 2.0 },
+        "timestamp_ms": { "type": "integer", "minimum": 0 },
+        "session_uuid_v4": { "type": "string", "format": "uuid" },
+        "terminal_id": { "type": "string", "minLength": 1 },
+        "transaction_details": { "$ref": "#/definitions/TransactionDetails" },
+        "account_info_public_display": { "$ref": "#/definitions/AccountInfoPublicDisplay" }
+      },
+      "additionalProperties": false
+    },
+    "SignedPacket": {
+      "type": "object",
+      "required": ["payload", "signature_alg", "signature"],
+      "properties": {
+        "payload": { "$ref": "#/definitions/Payload" },
+        "signature_alg": { "type": "string", "const": "HMAC-SHA256" },
+        "signature": { "type": "string", "pattern": "^[A-Za-z0-9+/=]+$" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/definitions/Payload" },
+    { "$ref": "#/definitions/SignedPacket" }
+  ]
+}

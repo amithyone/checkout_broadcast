@@ -1,0 +1,50 @@
+{
+  "name": "@checkout-broadcast/web",
+  "version": "1.0.0",
+  "description": "Checkout Broadcast web SDK — receive signed POS payment broadcasts in banking apps",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "pack-check": "npm pack --dry-run"
+  },
+  "keywords": [
+    "payments",
+    "nigeria",
+    "ble",
+    "banking",
+    "pos",
+    "checkout"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/checkout-broadcast/checkout-broadcast.git",
+    "directory": "sdk/typescript"
+  },
+  "bugs": {
+    "url": "https://github.com/checkout-broadcast/checkout-broadcast/issues"
+  },
+  "homepage": "https://github.com/checkout-broadcast/checkout-broadcast#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

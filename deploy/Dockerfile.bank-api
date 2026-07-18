@@ -1,0 +1,9 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY sdk/python ./sdk/python
+COPY bank_api ./bank_api
+ENV PYTHONPATH=/app/sdk/python:.
+EXPOSE 8090
+CMD ["python", "-m", "checkout_broadcast.cli", "run-bank"]

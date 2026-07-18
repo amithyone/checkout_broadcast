@@ -1,0 +1,5 @@
+# Checkout Broadcast BLE transport (optional)
+# Install on Windows/Linux: pip install checkout-broadcast[ble]
+# macOS: BLE receive works via Web/iOS/Android SDKs; Python BLE requires bleak (limited on macOS)
+
+bleak>=0.22; sys_platform != "darwin"

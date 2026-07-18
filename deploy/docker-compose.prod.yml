@@ -1,0 +1,19 @@
+services:
+  checkout-broadcast-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.bank-api
+    ports:
+      - "8090:8090"
+    environment:
+      CHECKOUT_BANK_HOST: "0.0.0.0"
+      CHECKOUT_BANK_PORT: "8090"
+      CHECKOUT_BANK_DB: "/data/checkout_bank.db"
+      CHECKOUT_BANK_ADMIN_KEY: "${CHECKOUT_BANK_ADMIN_KEY:-change-me}"
+      CHECKOUT_RATE_LIMIT_VERIFY: "120"
+    volumes:
+      - broadcast_data:/data
+    restart: unless-stopped
+
+volumes:
+  broadcast_data:

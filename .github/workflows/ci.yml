@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install jsonschema
+
+      - name: Run tests
+        env:
+          PYTHONPATH: sdk/python:.
+        run: pytest tests/ -v
+
+      - name: Verify bank API starts
+        env:
+          PYTHONPATH: sdk/python:.
+          CHECKOUT_BANK_ADMIN_KEY: ci-admin-key-min-16-chars
+        run: |
+          python -m uvicorn bank_api.server:app --host 127.0.0.1 --port 8090 &
+          sleep 2
+          curl -sf http://127.0.0.1:8090/health
+          curl -sf http://127.0.0.1:8090/ready

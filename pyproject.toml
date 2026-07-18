@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "checkout-broadcast"
+version = "1.0.0"
+description = "Open-source SDK for frictionless POS-to-banking-app payments in Nigeria"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [{ name = "Checkout Broadcast Contributors" }]
+keywords = ["payments", "nigeria", "ble", "pos", "banking", "sdk"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Office/Business :: Financial",
+]
+dependencies = [
+  "pydantic>=2.0",
+  "httpx>=0.24",
+  "click>=8.1",
+]
+
+[project.optional-dependencies]
+ble = ["bleak>=0.22; sys_platform != 'darwin'"]
+bank = ["fastapi>=0.100", "uvicorn>=0.23"]
+dev = ["pytest>=7.4", "jsonschema>=4.0", "checkout-broadcast[bank]"]
+
+[project.scripts]
+checkout-broadcast = "checkout_broadcast.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/checkout-broadcast/checkout-broadcast"
+Documentation = "https://github.com/checkout-broadcast/checkout-broadcast/tree/main/docs"
+Repository = "https://github.com/checkout-broadcast/checkout-broadcast"
+
+[tool.setuptools.packages.find]
+where = ["sdk/python"]
+include = ["checkout_broadcast*"]
+
+[tool.setuptools.package-data]
+checkout_broadcast = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["sdk/python", "."]
+testpaths = ["tests"]

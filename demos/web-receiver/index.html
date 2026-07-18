@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Checkout Broadcast — Web Receiver Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 0 1rem; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+    .amount { font-size: 1.5rem; font-weight: 700; }
+    button { padding: 0.5rem 1rem; margin-right: 0.5rem; }
+    .muted { color: #666; font-size: 0.9rem; }
+    .error { color: #b00020; }
+    .success { color: #006400; }
+  </style>
+</head>
+<body>
+  <h1>Checkout Broadcast</h1>
+  <p class="muted">Web receiver demo — role: <strong>receive</strong></p>
+
+  <label>Bank API URL <input id="bankUrl" value="http://127.0.0.1:8090" style="width:100%" /></label>
+  <div style="margin-top:1rem">
+    <button id="startBtn">Start listening (simulated)</button>
+    <button id="bleBtn">Scan BLE device</button>
+    <button id="simulateBtn">Simulate incoming packet</button>
+  </div>
+
+  <div id="status" class="card muted">Waiting to start…</div>
+  <div id="payment" class="card" hidden>
+    <div id="merchant"></div>
+    <div class="amount" id="amount"></div>
+    <div id="account" class="muted"></div>
+    <button id="confirmBtn">Confirm payment (demo)</button>
+  </div>
+
+  <script type="module">
+    import { CheckoutBroadcastAddon } from "./checkout-broadcast.js";
+
+    const statusEl = document.getElementById("status");
+    const paymentEl = document.getElementById("payment");
+    let addon;
+
+    function setStatus(text, cls = "muted") {
+      statusEl.className = `card ${cls}`;
+      statusEl.textContent = text;
+    }
+
+    document.getElementById("startBtn").addEventListener("click", async () => {
+      addon = new CheckoutBroadcastAddon({
+        role: "receive",
+        bankApiUrl: document.getElementById("bankUrl").value,
+        transport: "simulated",
+        onPaymentReceived: (p) => {
+          document.getElementById("merchant").textContent = p.merchantName;
+          document.getElementById("amount").textContent = `₦${p.amountNgn.toLocaleString()}`;
+          document.getElementById("account").textContent = p.maskedAccountSuffix;
+          paymentEl.hidden = false;
+          setStatus("Payment request received — review and confirm.", "success");
+        },
+        onError: (e) => setStatus(e.message, "error"),
+      });
+      await addon.start();
+      setStatus("Listening for checkout broadcasts…");
+    });
+
+    document.getElementById("bleBtn").addEventListener("click", async () => {
+      if (!navigator.bluetooth) {
+        setStatus("Web Bluetooth not supported in this browser.", "error");
+        return;
+      }
+      addon = new CheckoutBroadcastAddon({
+        role: "receive",
+        bankApiUrl: document.getElementById("bankUrl").value,
+        transport: "ble",
+        onPaymentReceived: (p) => {
+          document.getElementById("merchant").textContent = p.merchantName;
+          document.getElementById("amount").textContent = `₦${p.amountNgn.toLocaleString()}`;
+          document.getElementById("account").textContent = p.maskedAccountSuffix;
+          paymentEl.hidden = false;
+          setStatus("Payment received via BLE.", "success");
+        },
+        onError: (e) => setStatus(e.message, "error"),
+      });
+      await addon.start();
+      setStatus("Select a CheckoutPay POS device…");
+      try {
+        await addon.requestBleDevice();
+      } catch (e) {
+        setStatus(e.message, "error");
+      }
+    });
+
+    document.getElementById("simulateBtn").addEventListener("click", async () => {
+      if (!addon) {
+        setStatus("Click Start listening first.", "error");
+        return;
+      }
+      const sender = new CheckoutBroadcastAddon({
+        role: "send",
+        terminalId: "POS-LAG-001",
+        signingKey: prompt("Dev signing key (min 16 chars):") || "",
+        bankApiUrl: document.getElementById("bankUrl").value,
+        bankName: "kuda",
+        transport: "simulated",
+      });
+      await sender.start();
+      await sender.sendCheckout({ amountNgn: 2500, itemCount: 3 });
+      setStatus("Simulated POS broadcast sent.");
+    });
+
+    document.getElementById("confirmBtn").addEventListener("click", () => {
+      setStatus("Payment confirmed (demo — no funds moved).", "success");
+      paymentEl.hidden = true;
+    });
+  </script>
+</body>
+</html>
