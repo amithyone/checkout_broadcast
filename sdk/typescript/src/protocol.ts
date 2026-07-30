@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
-import type { CheckoutData, Payload, SignedPacket } from "./types.js";
-import { hashBankName } from "./signing.js";
+import type { CheckoutData, Payload, SignatureAlg, SignedPacket } from "./types.js";
+import { hashBankName, signPacket } from "./signing.js";
 
 export function buildPayload(params: {
   terminalId: string;
@@ -8,11 +8,12 @@ export function buildPayload(params: {
   itemCount: number;
   bankName: string;
   maskedAccountSuffix: string;
+  sessionUuidV4?: string;
 }): Payload {
   return {
     protocol_version: 2.0,
     timestamp_ms: Date.now(),
-    session_uuid_v4: randomUUID(),
+    session_uuid_v4: params.sessionUuidV4 ?? randomUUID(),
     terminal_id: params.terminalId,
     transaction_details: {
       currency_code: "NGN",
@@ -30,13 +31,29 @@ export function isTimestampValid(timestampMs: number, nowMs = Date.now()): boole
   return Math.abs(nowMs - timestampMs) <= 600_000;
 }
 
+export function parseTimestampMs(payload: Record<string, unknown>): number | null {
+  if (!Object.prototype.hasOwnProperty.call(payload, "timestamp_ms")) {
+    return null;
+  }
+  const raw = payload.timestamp_ms;
+  if (raw === null || raw === undefined || raw === "") {
+    return null;
+  }
+  const timestampMs = typeof raw === "number" ? raw : Number.parseInt(String(raw), 10);
+  if (!Number.isFinite(timestampMs) || timestampMs <= 0) {
+    return null;
+  }
+  return timestampMs;
+}
+
 export function createSignedPacket(
   checkout: CheckoutData,
   terminalId: string,
   signingKey: string,
   bankName: string,
   maskedAccountSuffix: string,
-  signFn: (payload: Payload, key: string) => string,
+  signatureAlg: SignatureAlg = "HMAC-SHA256",
+  sessionUuidV4?: string,
 ): SignedPacket {
   const payload = buildPayload({
     terminalId,
@@ -44,10 +61,12 @@ export function createSignedPacket(
     itemCount: checkout.itemCount ?? 1,
     bankName,
     maskedAccountSuffix,
+    sessionUuidV4,
   });
+  const signed = signPacket(payload, signingKey, signatureAlg);
   return {
     payload,
-    signature_alg: "HMAC-SHA256",
-    signature: signFn(payload, signingKey),
+    signature_alg: signed.signature_alg,
+    signature: signed.signature,
   };
 }

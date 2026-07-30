@@ -17,8 +17,9 @@ from checkout_broadcast.protocol import (
     VerifiedPayment,
     build_payload,
     is_timestamp_valid,
+    parse_timestamp_ms,
 )
-from checkout_broadcast.signing import sign_payload, verify_signature
+from checkout_broadcast.signing import normalize_signature_alg, sign_packet, verify_signature
 from checkout_broadcast.transport.simulated import create_transport
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ class CheckoutBroadcastConfig:
     bank_name: str = "kuda"
     masked_account_suffix: str = "***9876"
     transport: TransportKind = "simulated"
+    signature_alg: str = "HMAC-SHA256"
     require_https: bool = False
     on_payment_received: Optional[Callable[[VerifiedPayment], None]] = None
     on_send_complete: Optional[Callable[[str], None]] = None
@@ -60,8 +62,15 @@ class CheckoutBroadcastConfig:
         if self.role in ("send", "both"):
             if not self.terminal_id:
                 raise ValueError("terminal_id is required for send/both roles")
-            if not self.signing_key or len(self.signing_key) < 16:
-                raise ValueError("signing_key must be at least 16 characters for send/both roles")
+            alg = normalize_signature_alg(self.signature_alg)
+            if alg == "HMAC-SHA256":
+                if not self.signing_key or len(self.signing_key) < 16:
+                    raise ValueError("signing_key must be at least 16 characters for HMAC-SHA256 send/both roles")
+            elif alg == "ED25519":
+                if not self.signing_key:
+                    raise ValueError("signing_key (Ed25519 private key, base64) is required for ed25519 send/both roles")
+            else:
+                raise ValueError(f"Unsupported signature_alg: {self.signature_alg}")
 
         if not re.match(r"^\*{3}[0-9]{4}$", self.masked_account_suffix):
             raise ValueError("masked_account_suffix must match ***1234 format")
@@ -72,7 +81,7 @@ class CheckoutBroadcastAddon:
         self.config = config
         self._transport = create_transport(config.transport)
         self._started = False
-        self._seen_sessions: set[str] = set()
+        self._active_checkout: dict[str, int | str] | None = None
 
     def _can_send(self) -> bool:
         return self.config.role in ("send", "both")
@@ -110,15 +119,31 @@ class CheckoutBroadcastAddon:
             raise ValueError("item_count must be >= 1")
 
         terminal_id, signing_key = self._require_send_credentials()
+        reuse_session = None
+        if (
+            self._active_checkout
+            and self._active_checkout["amount_ngn"] == data.amount_ngn
+            and self._active_checkout["item_count"] == data.item_count
+        ):
+            reuse_session = str(self._active_checkout["session_uuid_v4"])
+
         payload = build_payload(
             terminal_id=terminal_id,
             amount_ngn=data.amount_ngn,
             item_count=data.item_count,
             bank_name=self.config.bank_name,
             masked_account_suffix=self.config.masked_account_suffix,
+            session_uuid_v4=reuse_session,
         )
-        signature = sign_payload(payload, signing_key)
-        packet = SignedPacket(payload=payload, signature=signature)
+        signature_alg, signature = sign_packet(payload, signing_key, self.config.signature_alg)
+        packet = SignedPacket(payload=payload, signature_alg=signature_alg, signature=signature)
+
+        if not reuse_session:
+            self._active_checkout = {
+                "session_uuid_v4": payload["session_uuid_v4"],
+                "amount_ngn": data.amount_ngn,
+                "item_count": data.item_count,
+            }
 
         if not self._started:
             self.start()
@@ -127,6 +152,32 @@ class CheckoutBroadcastAddon:
         if self.config.on_send_complete:
             self.config.on_send_complete(payload["session_uuid_v4"])
         return packet
+
+    def refresh_checkout(self) -> SignedPacket | None:
+        if not self._active_checkout:
+            return None
+        return self.send_checkout(
+            CheckoutData(
+                amount_ngn=int(self._active_checkout["amount_ngn"]),
+                item_count=int(self._active_checkout["item_count"]),
+            )
+        )
+
+    def cancel_checkout(self) -> None:
+        if not self._active_checkout or not self.config.terminal_id:
+            self._active_checkout = None
+            return
+        session_uuid = str(self._active_checkout["session_uuid_v4"])
+        terminal_id = self.config.terminal_id
+        self._active_checkout = None
+        try:
+            httpx.post(
+                f"{self.config.bank_api_url.rstrip('/')}/sessions/cancel",
+                json={"session_uuid_v4": session_uuid, "terminal_id": terminal_id},
+                timeout=10.0,
+            )
+        except httpx.HTTPError:
+            pass
 
     def _handle_packet(self, packet: SignedPacket) -> None:
         try:
@@ -141,19 +192,23 @@ class CheckoutBroadcastAddon:
                 raise
 
     def _verify_locally_and_with_bank(self, packet: SignedPacket) -> VerifiedPayment:
-        payload = packet.payload.model_dump()
-        if not is_timestamp_valid(payload["timestamp_ms"]):
+        payload = packet.payload if isinstance(packet.payload, dict) else packet.payload.model_dump()
+        timestamp_ms = parse_timestamp_ms(payload)
+        if timestamp_ms is None:
+            raise VerificationError("Missing timestamp_ms in payload")
+        if not is_timestamp_valid(timestamp_ms):
             raise VerificationError("Packet timestamp is outside the 10-minute window")
 
         session = payload["session_uuid_v4"]
-        if session in self._seen_sessions:
-            raise VerificationError("Session UUID already consumed (replay detected)")
-        self._seen_sessions.add(session)
 
         try:
             response = httpx.post(
                 f"{self.config.bank_api_url.rstrip('/')}/verify-broadcast",
-                json=packet.model_dump(),
+                json={
+                    "payload": payload,
+                    "signature_alg": packet.signature_alg,
+                    "signature": packet.signature,
+                },
                 timeout=10.0,
             )
         except httpx.HTTPError as exc:
@@ -184,4 +239,5 @@ class CheckoutBroadcastAddon:
 
     def verify_with_known_key(self, packet: SignedPacket, signing_key: str) -> bool:
         """Local signature check used in conformance tests."""
-        return verify_signature(packet.payload.model_dump(), signing_key, packet.signature)
+        payload = packet.payload if isinstance(packet.payload, dict) else packet.payload.model_dump()
+        return verify_signature(payload, signing_key, packet.signature)

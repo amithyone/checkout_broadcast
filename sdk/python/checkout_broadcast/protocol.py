@@ -9,6 +9,7 @@ from checkout_broadcast.signing import hash_bank_name
 
 BroadcastRole = Literal["send", "receive", "both"]
 TransportKind = Literal["ble", "simulated"]
+SignatureAlg = Literal["HMAC-SHA256", "ed25519", "ED25519"]
 
 MAX_AGE_MS = 600_000  # 10 minutes
 
@@ -34,8 +35,8 @@ class Payload(BaseModel):
 
 
 class SignedPacket(BaseModel):
-    payload: Payload
-    signature_alg: Literal["HMAC-SHA256"] = "HMAC-SHA256"
+    payload: Payload | dict
+    signature_alg: str = "HMAC-SHA256"
     signature: str
 
 
@@ -61,10 +62,11 @@ def build_payload(
     item_count: int,
     bank_name: str,
     masked_account_suffix: str,
+    session_uuid_v4: str | None = None,
 ) -> dict:
     return Payload(
         timestamp_ms=int(time.time() * 1000),
-        session_uuid_v4=str(uuid.uuid4()),
+        session_uuid_v4=session_uuid_v4 or str(uuid.uuid4()),
         terminal_id=terminal_id,
         transaction_details=TransactionDetails(
             total_amount_ngn=amount_ngn,
@@ -80,3 +82,24 @@ def build_payload(
 def is_timestamp_valid(timestamp_ms: int, now_ms: Optional[int] = None) -> bool:
     now = now_ms if now_ms is not None else int(time.time() * 1000)
     return abs(now - timestamp_ms) <= MAX_AGE_MS
+
+
+def parse_timestamp_ms(payload: dict) -> int | None:
+    """Return epoch milliseconds from payload.timestamp_ms, or None if missing/invalid."""
+    if "timestamp_ms" not in payload:
+        return None
+    raw = payload["timestamp_ms"]
+    if raw is None or raw == "":
+        return None
+    try:
+        timestamp_ms = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return timestamp_ms if timestamp_ms > 0 else None
+
+
+def require_timestamp_ms(payload: dict) -> int:
+    timestamp_ms = parse_timestamp_ms(payload)
+    if timestamp_ms is None:
+        raise ValueError("Missing timestamp_ms in payload")
+    return timestamp_ms

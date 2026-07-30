@@ -1,4 +1,4 @@
-export type BroadcastRole = "send" | "receive" | "both";
+export type SignatureAlg = "HMAC-SHA256" | "ed25519" | "ED25519";
 export type TransportKind = "ble" | "simulated";
 
 export interface TransactionDetails {
@@ -23,7 +23,7 @@ export interface Payload {
 
 export interface SignedPacket {
   payload: Payload;
-  signature_alg: "HMAC-SHA256";
+  signature_alg: SignatureAlg;
   signature: string;
 }
 
@@ -38,6 +38,7 @@ export interface VerifiedPayment {
   maskedAccountSuffix: string;
   sessionUuid: string;
   terminalId: string;
+  sessionStatus?: "open" | "paid" | "cancelled";
 }
 
 export interface CheckoutBroadcastConfig {
@@ -48,6 +49,7 @@ export interface CheckoutBroadcastConfig {
   merchantName?: string;
   bankName?: string;
   maskedAccountSuffix?: string;
+  signatureAlg?: SignatureAlg;
   transport?: TransportKind;
   onPaymentReceived?: (payment: VerifiedPayment) => void;
   onSendComplete?: (sessionId: string) => void;

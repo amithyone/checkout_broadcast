@@ -32,6 +32,16 @@ PYTHONPATH="sdk/python:." python -m checkout_broadcast.cli register-terminal \
 
 Registration requires the `X-Admin-Key` header (set automatically by the CLI from `CHECKOUT_BANK_ADMIN_KEY`).
 
+### CheckoutPay merchants (Pay at shop)
+
+If the merchant uses **CheckoutPay** (`check-outpay.com`), skip manual registration — credentials come from **Dashboard → Pay at shop**:
+
+- Terminal ID, Merchant ID, Signing key (Ed25519, base64)
+- Set `signature_alg="ed25519"` in the SDK config
+- Set `bank_name` to match the merchant's settlement bank exactly
+
+See **[CheckoutPay integration guide](../docs/checkoutpay-integration.md)**.
+
 ---
 
 ## 2. Choose your SDK
@@ -124,6 +134,7 @@ class PaymentController:
         ))
 
     def cancel_payment_collection(self):
+        self.broadcast.cancel_checkout()
         self.broadcast.stop()
 ```
 
