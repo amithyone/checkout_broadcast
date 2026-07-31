@@ -138,3 +138,73 @@ def test_invalid_signature_rejected(client):
         "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
     }
     assert client.post("/verify-broadcast", json=packet).json()["error"] == "Invalid signature"
+
+
+def test_missing_timestamp_ms_rejected(client):
+    client.post(
+        "/terminals/register",
+        headers={"X-Admin-Key": ADMIN_KEY},
+        json={
+            "terminal_id": "POS-NO-TS",
+            "signing_key": SIGNING_KEY,
+            "merchant_name": "Shop",
+            "bank_name": "kuda",
+            "masked_account_suffix": "***9876",
+        },
+    )
+    payload = {
+        "protocol_version": 2.0,
+        "session_uuid_v4": "44444444-4444-4444-8444-444444444444",
+        "terminal_id": "POS-NO-TS",
+        "transaction_details": {"currency_code": "NGN", "total_amount_ngn": 500, "item_count": 1},
+        "account_info_public_display": {
+            "bank_name_hash": hash_bank_name("kuda"),
+            "masked_account_suffix": "***9876",
+        },
+    }
+    packet = {
+        "payload": payload,
+        "signature_alg": "HMAC-SHA256",
+        "signature": sign_payload(payload, SIGNING_KEY),
+    }
+    assert client.post("/verify-broadcast", json=packet).json()["error"] == "Missing timestamp_ms in payload"
+
+
+def test_ed25519_register_and_verify(client):
+    from checkout_broadcast.signing import generate_ed25519_keypair, sign_packet
+
+    keys = generate_ed25519_keypair()
+    reg = client.post(
+        "/terminals/register",
+        headers={"X-Admin-Key": ADMIN_KEY},
+        json={
+            "terminal_id": "POS-ED25519",
+            "signature_alg": "ed25519",
+            "signing_key": keys["signing_key"],
+            "public_key": keys["public_key"],
+            "merchant_name": "Ed Shop",
+            "bank_name": "kuda",
+            "masked_account_suffix": "***9876",
+        },
+    )
+    assert reg.status_code == 200
+
+    payload = {
+        "protocol_version": 1,
+        "timestamp_ms": int(time.time() * 1000),
+        "session_uuid_v4": "55555555-5555-4555-8555-555555555555",
+        "terminal_id": "POS-ED25519",
+        "transaction_details": {"currency_code": "NGN", "total_amount_ngn": 3200, "item_count": 2},
+        "account_info_public_display": {
+            "bank_name_hash": hash_bank_name("kuda"),
+            "masked_account_suffix": "***9876",
+        },
+    }
+    alg, signature = sign_packet(payload, keys["signing_key"], "ed25519")
+    verify = client.post(
+        "/verify-broadcast",
+        json={"payload": payload, "signature_alg": alg, "signature": signature},
+    )
+    body = verify.json()
+    assert body["valid"] is True
+    assert body["amount_ngn"] == 3200

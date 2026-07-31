@@ -13,6 +13,10 @@ Deploy the reference [`bank_api/`](../bank_api/) for CheckoutNow and merchant PO
 
 Mobile app default: `EXPO_PUBLIC_CHECKOUT_BROADCAST_API=https://check-outpay.com/api/v1/broadcast`
 
+**Implementer guide:** [docs/checkoutpay-integration.md](../docs/checkoutpay-integration.md)  
+**Verify contract:** [spec/verify-api.md](../spec/verify-api.md)  
+**Production Laravel source of truth:** `checkout/BROADCAST_VERIFY_API.md` in the CheckoutPay repo (Option B deploy).
+
 ## Option A — Sidecar (fastest)
 
 Run the Python FastAPI server beside Laravel on the dev/staging box:

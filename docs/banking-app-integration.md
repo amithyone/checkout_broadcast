@@ -273,12 +273,15 @@ Your bank must implement verification. The SDK POSTs the full signed envelope to
 ### Verification steps (your backend MUST implement)
 
 1. Look up `terminal_id` in merchant registry — reject unknown terminals.
-2. Validate `timestamp_ms` within ±10 minutes of server time.
-3. Reject if `session_uuid_v4` was already used for this terminal (replay).
-4. Recompute HMAC-SHA256 over canonical payload JSON with terminal's signing key — compare to `signature`.
-5. Verify `bank_name_hash` matches registered merchant.
-6. Return merchant display name and **full recipient account** from registry (not from untrusted BLE fields alone).
-7. Mark session UUID as consumed **before** returning success.
+2. Reject if `payload.timestamp_ms` is missing or not a positive integer (`Missing timestamp_ms in payload`).
+3. Validate `timestamp_ms` within ±10 minutes of server time.
+4. Reject if `session_uuid_v4` was already used for this terminal (replay).
+5. Verify signature:
+   - **HMAC-SHA256:** recompute HMAC over canonical payload JSON with terminal `signing_key`
+   - **Ed25519:** verify detached signature with terminal `public_key` (CheckoutPay Pay at shop)
+6. Verify `bank_name_hash` matches registered merchant.
+7. Return merchant display name and **full recipient account** from registry (not from untrusted BLE fields alone).
+8. Mark session UUID as consumed **before** returning success (or allow idempotent retries — CheckoutPay allows retry after successful verify).
 
 Reference implementation: [`bank_api/server.py`](../bank_api/server.py)
 
@@ -333,6 +336,7 @@ The broadcast SDK verifies intent and amount integrity. **Money movement stays i
 
 | Error | Meaning | UX |
 |-------|---------|-----|
+| `Missing timestamp_ms in payload` | POS/app dropped required field | "Ask cashier to send payment again" |
 | `VerificationError` | Bad signature, replay, or expired timestamp | "Could not verify shop payment. Enter details manually." |
 | `TransportError` | BLE off or unsupported | Prompt to enable Bluetooth |
 | `RoleNotAllowedError` | Dev misconfiguration | Fix SDK config — not user-facing |

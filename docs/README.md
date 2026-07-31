@@ -13,8 +13,10 @@ Checkout Broadcast lets Nigerian businesses accept payments without customers ty
 
 - **[POS app integration guide](pos-app-integration.md)** — for shop terminals, Windows POS, merchant dashboards
 - **[Banking app integration guide](banking-app-integration.md)** — for Kuda, OPay, GTBank, and other wallet/banking apps
+- **[CheckoutPay integration guide](checkoutpay-integration.md)** — Pay at shop on `check-outpay.com` (Ed25519, dashboard credentials)
+- **[Verify API contract](../spec/verify-api.md)** — request/response and error strings for `/verify-broadcast`
 - **[Unified addon API](../spec/addon-api.md)** — cross-platform API contract
-- **[Signing rules](../spec/signing-rules.md)** — HMAC-SHA256 verification spec
+- **[Signing rules](../spec/signing-rules.md)** — HMAC-SHA256 and Ed25519 verification
 - **[BLE transport](../spec/ble-transport.md)** — GATT service UUIDs and radio flow
 
 ## End-to-end flow
@@ -48,7 +50,7 @@ PYTHONPATH="sdk/python:." python -m checkout_broadcast.cli demo-send --amount 25
 
 ## Security model (summary)
 
-- **Integrity:** HMAC-SHA256 over canonical JSON — amount cannot be tampered in transit
+- **Integrity:** HMAC-SHA256 or Ed25519 over canonical JSON — amount cannot be tampered in transit
 - **Replay:** 10-minute timestamp window + one-time session UUID per terminal
 - **Spoofing:** Terminal must be registered in bank merchant registry before broadcast is accepted
 - **Confidentiality:** Account numbers are masked in the broadcast; full details come only from bank API after verification

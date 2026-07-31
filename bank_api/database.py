@@ -37,7 +37,9 @@ class BankDatabase:
                 """
                 CREATE TABLE IF NOT EXISTS terminals (
                     terminal_id TEXT PRIMARY KEY,
-                    signing_key TEXT NOT NULL,
+                    signing_key TEXT NOT NULL DEFAULT '',
+                    public_key TEXT,
+                    signature_alg TEXT NOT NULL DEFAULT 'HMAC-SHA256',
                     merchant_name TEXT NOT NULL,
                     bank_name TEXT NOT NULL,
                     bank_name_hash TEXT NOT NULL,
@@ -60,12 +62,22 @@ class BankDatabase:
                     ON used_sessions(terminal_id);
                 """
             )
+            self._ensure_terminal_columns(conn)
+
+    def _ensure_terminal_columns(self, conn: sqlite3.Connection) -> None:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(terminals)").fetchall()}
+        if "public_key" not in columns:
+            conn.execute("ALTER TABLE terminals ADD COLUMN public_key TEXT")
+        if "signature_alg" not in columns:
+            conn.execute("ALTER TABLE terminals ADD COLUMN signature_alg TEXT NOT NULL DEFAULT 'HMAC-SHA256'")
 
     def upsert_terminal(
         self,
         *,
         terminal_id: str,
-        signing_key: str,
+        signing_key: str = "",
+        public_key: Optional[str] = None,
+        signature_alg: str = "HMAC-SHA256",
         merchant_name: str,
         bank_name: str,
         bank_name_hash: str,
@@ -78,12 +90,14 @@ class BankDatabase:
             conn.execute(
                 """
                 INSERT INTO terminals (
-                    terminal_id, signing_key, merchant_name, bank_name, bank_name_hash,
+                    terminal_id, signing_key, public_key, signature_alg, merchant_name, bank_name, bank_name_hash,
                     masked_account_suffix, account_number, recipient_bank_code,
                     active, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
                 ON CONFLICT(terminal_id) DO UPDATE SET
                     signing_key = excluded.signing_key,
+                    public_key = COALESCE(excluded.public_key, terminals.public_key),
+                    signature_alg = excluded.signature_alg,
                     merchant_name = excluded.merchant_name,
                     bank_name = excluded.bank_name,
                     bank_name_hash = excluded.bank_name_hash,
@@ -96,6 +110,8 @@ class BankDatabase:
                 (
                     terminal_id,
                     signing_key,
+                    public_key,
+                    signature_alg,
                     merchant_name,
                     bank_name,
                     bank_name_hash,

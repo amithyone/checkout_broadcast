@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import base64
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Optional, Optional
@@ -20,8 +21,14 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "sdk" / "python"))
 
-from checkout_broadcast.protocol import SignedPacket, is_timestamp_valid
-from checkout_broadcast.signing import hash_bank_name, verify_signature
+from checkout_broadcast.protocol import SignedPacket, is_timestamp_valid, parse_timestamp_ms
+from checkout_broadcast.signing import (
+    _ed25519_signing_key,
+    generate_ed25519_keypair,
+    hash_bank_name,
+    normalize_signature_alg,
+    verify_packet,
+)
 
 from bank_api.auth import RateLimiter, require_admin_key
 from bank_api.config import Settings
@@ -39,7 +46,10 @@ def admin_auth(x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-
 
 class TerminalRegistration(BaseModel):
     terminal_id: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
-    signing_key: str = Field(min_length=16, max_length=256)
+    signing_key: Optional[str] = Field(default=None, min_length=16, max_length=4096)
+    public_key: Optional[str] = Field(default=None, max_length=512)
+    signature_alg: Optional[str] = Field(default="HMAC-SHA256")
+    generate_signing_key: bool = False
     merchant_name: str = Field(min_length=1, max_length=128)
     bank_name: str = Field(min_length=1, max_length=64)
     masked_account_suffix: str = Field(pattern=r"^\*{3}[0-9]{4}$")
@@ -103,10 +113,28 @@ def ready() -> dict[str, Any]:
 
 
 @app.post("/terminals/register", dependencies=[Depends(admin_auth)])
-def register_terminal(body: TerminalRegistration) -> dict[str, str]:
+def register_terminal(body: TerminalRegistration) -> dict[str, Any]:
+    signature_alg = normalize_signature_alg(body.signature_alg or "HMAC-SHA256")
+    signing_key = body.signing_key or ""
+    public_key = body.public_key
+
+    if signature_alg == "ED25519":
+        if body.generate_signing_key:
+            generated = generate_ed25519_keypair()
+            signing_key = generated["signing_key"]
+            public_key = generated["public_key"]
+        elif public_key is None and not signing_key:
+            raise HTTPException(status_code=422, detail="public_key or signing_key required for ed25519 terminals")
+        elif public_key is None and signing_key:
+            public_key = base64.b64encode(bytes(_ed25519_signing_key(signing_key).verify_key)).decode("ascii")
+    elif not signing_key or len(signing_key) < 16:
+        raise HTTPException(status_code=422, detail="signing_key must be at least 16 characters for HMAC-SHA256")
+
     db.upsert_terminal(
         terminal_id=body.terminal_id,
-        signing_key=body.signing_key,
+        signing_key=signing_key,
+        public_key=public_key,
+        signature_alg=signature_alg,
         merchant_name=body.merchant_name,
         bank_name=body.bank_name,
         bank_name_hash=hash_bank_name(body.bank_name),
@@ -114,8 +142,16 @@ def register_terminal(body: TerminalRegistration) -> dict[str, str]:
         account_number=body.account_number,
         recipient_bank_code=body.recipient_bank_code,
     )
-    logger.info("Registered terminal %s", body.terminal_id)
-    return {"status": "registered", "terminal_id": body.terminal_id}
+    logger.info("Registered terminal %s alg=%s", body.terminal_id, signature_alg)
+    response: dict[str, Any] = {
+        "status": "registered",
+        "terminal_id": body.terminal_id,
+        "signature_alg": signature_alg,
+    }
+    if signature_alg == "ED25519" and signing_key:
+        response["signing_key"] = signing_key
+        response["public_key"] = public_key
+    return response
 
 
 @app.get("/terminals", dependencies=[Depends(admin_auth)])
@@ -149,13 +185,16 @@ def verify_broadcast(request: Request, packet: SignedPacket) -> dict[str, Any]:
             headers={"Retry-After": str(retry)},
         )
 
-    payload = packet.payload.model_dump()
+    payload = packet.payload if isinstance(packet.payload, dict) else packet.payload.model_dump()
     terminal_id = payload["terminal_id"]
     terminal = db.get_terminal(terminal_id)
     if not terminal:
         return VerifyFailure(error="Unknown terminal_id").model_dump()
 
-    if not is_timestamp_valid(payload["timestamp_ms"]):
+    timestamp_ms = parse_timestamp_ms(payload)
+    if timestamp_ms is None:
+        return VerifyFailure(error="Missing timestamp_ms in payload").model_dump()
+    if not is_timestamp_valid(timestamp_ms):
         return VerifyFailure(error="Timestamp outside allowed window").model_dump()
 
     session = payload["session_uuid_v4"]
@@ -165,7 +204,14 @@ def verify_broadcast(request: Request, packet: SignedPacket) -> dict[str, Any]:
     if payload["account_info_public_display"]["bank_name_hash"] != terminal["bank_name_hash"]:
         return VerifyFailure(error="Bank name hash mismatch").model_dump()
 
-    if not verify_signature(payload, terminal["signing_key"], packet.signature):
+    signature_alg = packet.signature_alg or terminal.get("signature_alg") or "HMAC-SHA256"
+    if not verify_packet(
+        payload,
+        signature_alg,
+        packet.signature,
+        signing_key=terminal.get("signing_key") or "",
+        public_key=terminal.get("public_key"),
+    ):
         return VerifyFailure(error="Invalid signature").model_dump()
 
     tx = payload["transaction_details"]

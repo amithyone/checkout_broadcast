@@ -23,6 +23,7 @@ interface CheckoutBroadcastConfig {
   bankName?: string;         // used to compute bank_name_hash on send
   maskedAccountSuffix?: string; // e.g. "***9876"
   bankApiUrl: string;
+  signatureAlg?: "HMAC-SHA256" | "ed25519" | "ED25519";
   transport?: "ble" | "simulated"; // default: simulated
   onPaymentReceived?: (payment: VerifiedPayment) => void;
   onSendComplete?: (sessionId: string) => void;

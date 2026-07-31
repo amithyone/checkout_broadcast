@@ -9,7 +9,7 @@ After checkout, a shop terminal broadcasts a **signed payment request** over Blu
 
 ## Features
 
-- Signed protocol v2.0 (HMAC-SHA256, replay protection)
+- Signed protocol v2.0 (HMAC-SHA256 or Ed25519, replay protection)
 - Drop-in SDK addon: `send` / `receive` / `both` roles
 - Python (Windows/Linux POS), TypeScript (Web), Android & iOS stubs
 - **Reference bank API** for banks to test before production rollout
@@ -42,6 +42,8 @@ PYTHONPATH="sdk/python:." python -m checkout_broadcast.cli demo-send --amount 25
 |----------|-------|
 | **POS / shop terminal apps** | [docs/pos-app-integration.md](docs/pos-app-integration.md) |
 | **Banking / wallet apps** | [docs/banking-app-integration.md](docs/banking-app-integration.md) |
+| **CheckoutPay Pay at shop** | [docs/checkoutpay-integration.md](docs/checkoutpay-integration.md) |
+| **Verify API contract** | [spec/verify-api.md](spec/verify-api.md) |
 | **Overview** | [docs/README.md](docs/README.md) |
 | **vs CheckoutNow Nearby Pay** | [spec/coexistence-with-proprietary-nearby.md](spec/coexistence-with-proprietary-nearby.md) |
 

@@ -124,6 +124,9 @@ class CheckoutBroadcastAddon(
     private fun verifyWithBank(packetJson: JSONObject): VerifiedPayment {
         val payload = packetJson.getJSONObject("payload")
         val session = payload.getString("session_uuid_v4")
+        if (!payload.has("timestamp_ms") || payload.isNull("timestamp_ms")) {
+            throw Exception("Missing timestamp_ms in payload")
+        }
         val timestampMs = payload.getLong("timestamp_ms")
         val now = System.currentTimeMillis()
         if (kotlin.math.abs(now - timestampMs) > 600_000) {
