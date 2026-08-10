@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0] - 2026-08-10
+
+### Added
+- [spec/ble-transport.md](spec/ble-transport.md) — compact `{p,alg,sig}` wire, kobo amounts, presence (CheckoutNow / Cheko path)
+- TypeScript `normalizeBleReadForVerify` / `expandWireToVerifyPacket` (`sdk/typescript/src/bleWire.ts`)
+- Reference bank API: compact wire expand + presence (no session burn) via `bank_api/ble_wire.py`
+
+### Changed
+- Docs and verify API contract now describe **expand → verify**, Ed25519 production defaults, and kobo÷100 for UI
+- Web receiver demo expands compact wire before `POST /verify-broadcast`
+- `bank_display_matches` accepts msk-only wire display (matches Laravel deploy controller)
+
 ## [1.1.0] - 2026-07-30
 
 ### Added

@@ -3,8 +3,15 @@
  * Mirrors sdk/typescript/src for environments without a build step.
  */
 
+import { normalizeBleReadForVerify } from "./ble-wire-expand.js";
+
 const MAX_AGE_MS = 600_000;
 const globalListeners = [];
+
+function wireKoboToNaira(kobo) {
+  if (!Number.isFinite(kobo) || kobo <= 0) return 0;
+  return Math.round(kobo) / 100;
+}
 
 export class RoleNotAllowedError extends Error {
   constructor(message) {
@@ -189,31 +196,53 @@ export class CheckoutBroadcastAddon {
     }
   }
 
-  async verifyLocallyAndWithBank(packet) {
+  async verifyLocallyAndWithBank(rawPacket) {
+    // Compact Cheko wire {p,alg,sig} must be expanded before verify.
+    const packet = normalizeBleReadForVerify(rawPacket);
     const { payload } = packet;
-    if (Math.abs(Date.now() - payload.timestamp_ms) > MAX_AGE_MS) {
+    const ts = Number(payload.timestamp_ms);
+    if (!Number.isFinite(ts) || ts <= 0) {
+      throw new VerificationError("Missing timestamp_ms in payload");
+    }
+    if (Math.abs(Date.now() - ts) > MAX_AGE_MS) {
       throw new VerificationError("Packet timestamp is outside the 10-minute window");
     }
-    if (this.seenSessions.has(payload.session_uuid_v4)) {
-      throw new VerificationError("Session UUID already consumed (replay detected)");
+    const amountRaw = Number(payload.transaction_details?.total_amount_ngn ?? 0);
+    const isPresence =
+      String(payload.session_kind ?? "").toLowerCase() === "presence" ||
+      !(Number.isFinite(amountRaw) && amountRaw > 0);
+    const session = payload.session_uuid_v4;
+    if (!isPresence) {
+      if (this.seenSessions.has(session)) {
+        throw new VerificationError("Session UUID already consumed (replay detected)");
+      }
+      this.seenSessions.add(session);
     }
-    this.seenSessions.add(payload.session_uuid_v4);
 
     const response = await fetch(`${this.config.bankApiUrl.replace(/\/$/, "")}/verify-broadcast`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(packet),
+      body: JSON.stringify({
+        payload: packet.payload,
+        signature_alg: packet.signature_alg,
+        signature: packet.signature,
+      }),
     });
     const body = await response.json();
     if (!response.ok || !body.valid) {
       throw new VerificationError(body.error ?? "Bank verification failed");
     }
+    const amountNgn =
+      packet.wireSource === "wire" ? wireKoboToNaira(body.amount_ngn) : body.amount_ngn;
     return {
       merchantName: body.merchant_name,
-      amountNgn: body.amount_ngn,
+      amountNgn,
+      sessionKind: body.session_kind ?? (isPresence ? "presence" : "pos_checkout"),
       maskedAccountSuffix: body.masked_account_suffix,
       sessionUuid: body.session_uuid,
       terminalId: body.terminal_id,
+      recipientAccount: body.recipient_account,
+      recipientBankCode: body.recipient_bank_code,
     };
   }
 }

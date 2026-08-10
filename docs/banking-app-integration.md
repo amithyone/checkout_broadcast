@@ -37,9 +37,20 @@ pytest tests/test_conformance.py -k golden
 
 Register each golden `terminal_id` in your staging registry with signing key `test-signing-key-min-16-chars`, POST the fixture envelope to `/verify-broadcast`, expect `valid: true`.
 
-**CheckoutNow** (reference implementer): `https://check-outpay.com/api/v1/broadcast/verify-broadcast` — see [deploy/checkoutpay-production.md](../deploy/checkoutpay-production.md).
+**CheckoutNow** (reference implementer): `https://check-outpay.com/api/v1/broadcast/verify-broadcast` — see [checkoutpay-integration.md](checkoutpay-integration.md).
 
 **Do not confuse with CheckoutNow Nearby Pay** — proprietary P2P uses different BLE UUIDs; see [coexistence spec](../spec/coexistence-with-proprietary-nearby.md).
+
+### Production receive path (what CheckoutNow does)
+
+Follow this even if you use your own bank backend:
+
+1. Scan BLE service `cbbc0001-0000-4000-8000-000000000001`, read char `cbbc0002-…0001`.
+2. Parse JSON — usually compact `{ p, alg, sig }` (Ed25519), not the full envelope.
+3. **Expand** with `normalizeBleReadForVerify` ([ble-transport.md](../spec/ble-transport.md), [`ble-wire-expand.js`](../demos/web-receiver/ble-wire-expand.js), TS [`bleWire.ts`](../sdk/typescript/src/bleWire.ts)).
+4. `POST` `{ payload, signature_alg, signature }` to your `/verify-broadcast` (or CheckoutPay).
+5. Amounts on wire are **kobo** → divide by 100 for transfer UI; `0` / `session_kind: presence` → customer enters amount.
+6. Pay out using **`recipient_account` / `recipient_bank_code` from the verify response**, not BLE alone.
 
 ---
 
@@ -72,14 +83,15 @@ The SDK handles BLE scanning, local timestamp checks, and the HTTP call to your 
 ## 4. Customer journey (what your UI should do)
 
 ```
-1. Customer finishes shopping; cashier completes checkout on POS
+1. Customer is at the till (checkout amount on POS, or idle “Pay at shop” presence)
 2. Customer opens YOUR banking app (or already has it open)
-3. SDK receives broadcast → calls your bank API → onPaymentReceived fires
-4. You show: "Pay ABC Enterprises — ₦2,500 — ***9876"
+3. App reads BLE → expands wire → calls your bank API → verify succeeds
+4a. Checkout: show "Pay ABC Enterprises — ₦2,500 — ***9876"
+    (if packet was compact wire, convert kobo→naira before display)
+4b. Presence: show merchant + ask customer to enter amount
 5. Transfer screen pre-filled:
-   - Recipient name: ABC Enterprises (from bank API response)
-   - Amount: ₦2,500 (locked — do not allow edit if verification said so)
-   - Account: resolved from bank registry (not from BLE packet alone)
+    - Recipient name / account from bank API response (registry)
+    - Amount from verify (converted) or from customer entry
 6. Customer reviews → PIN / Face ID → your normal debit API
 ```
 
@@ -240,11 +252,13 @@ For production web banking, prefer the **native Android/iOS SDK** — Web Blueto
 
 ## 8. Bank backend API (required)
 
-Your bank must implement verification. The SDK POSTs the full signed envelope to your API.
+Your bank must implement verification. Wallets should POST the **expanded** envelope (`payload` + `signature_alg` + `signature`). Production backends (CheckoutPay Laravel) also accept compact `{p,alg,sig}` and expand server-side.
+
+Full contract: [spec/verify-api.md](../spec/verify-api.md).
 
 ### `POST /verify-broadcast`
 
-**Request body:** signed packet (same JSON the POS broadcast).
+**Request body:** expanded signed packet (or compact wire if you implement expand).
 
 **Success response (200):**
 
@@ -252,7 +266,8 @@ Your bank must implement verification. The SDK POSTs the full signed envelope to
 {
   "valid": true,
   "merchant_name": "ABC Enterprises",
-  "amount_ngn": 2500,
+  "amount_ngn": 250000,
+  "session_kind": "pos_checkout",
   "masked_account_suffix": "***9876",
   "session_uuid": "550e8400-e29b-41d4-a716-446655440000",
   "terminal_id": "POS-LAG-001",
@@ -261,29 +276,22 @@ Your bank must implement verification. The SDK POSTs the full signed envelope to
 }
 ```
 
-**Failure response (200 with valid=false or 4xx):**
-
-```json
-{
-  "valid": false,
-  "error": "Session UUID already used (replay)"
-}
-```
+(`amount_ngn` is **kobo** for Cheko/CheckoutNow wire — wallet divides by 100 for Naira UI.)
 
 ### Verification steps (your backend MUST implement)
 
-1. Look up `terminal_id` in merchant registry — reject unknown terminals.
-2. Reject if `payload.timestamp_ms` is missing or not a positive integer (`Missing timestamp_ms in payload`).
-3. Validate `timestamp_ms` within ±10 minutes of server time.
-4. Reject if `session_uuid_v4` was already used for this terminal (replay).
-5. Verify signature:
-   - **HMAC-SHA256:** recompute HMAC over canonical payload JSON with terminal `signing_key`
-   - **Ed25519:** verify detached signature with terminal `public_key` (CheckoutPay Pay at shop)
-6. Verify `bank_name_hash` matches registered merchant.
-7. Return merchant display name and **full recipient account** from registry (not from untrusted BLE fields alone).
-8. Mark session UUID as consumed **before** returning success (or allow idempotent retries — CheckoutPay allows retry after successful verify).
+1. Normalize compact BLE wire → expanded envelope if needed.
+2. Look up `terminal_id` in merchant registry — reject unknown terminals.
+3. Reject if `payload.timestamp_ms` is missing or not a positive integer.
+4. Validate `timestamp_ms` within ±10 minutes of server time.
+5. Presence (`session_kind=presence` or amount ≤ 0): **do not** burn session UUID. Checkout: reject if session already used (replay).
+6. Verify signature over **canonical expanded payload**:
+   - **Ed25519:** terminal `public_key` (CheckoutPay production)
+   - **HMAC-SHA256:** terminal `signing_key`
+7. Match bank display: plain `bank_name`, legacy `bank_name_hash`, or masked suffix vs registry.
+8. Return merchant name + **full recipient account** from registry (not from untrusted BLE alone).
 
-Reference implementation: [`bank_api/server.py`](../bank_api/server.py)
+Reference: [`deploy/laravel/BroadcastVerifyController.php`](../deploy/laravel/BroadcastVerifyController.php), [`bank_api/server.py`](../bank_api/server.py).
 
 ### `POST /terminals/register` (merchant onboarding)
 

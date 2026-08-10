@@ -25,15 +25,26 @@ def hash_bank_name(bank_name: str) -> str:
     return f"sha256:{digest}"
 
 
-def bank_display_matches(terminal_bank_name: str, display: dict, terminal_bank_hash: str) -> bool:
-    """Accept plain bank_name (v2.1+) or legacy bank_name_hash."""
+def bank_display_matches(
+    terminal_bank_name: str,
+    display: dict,
+    terminal_bank_hash: str,
+    terminal_masked_suffix: str = "",
+) -> bool:
+    """Accept plain bank_name, legacy bank_name_hash, or wire msk-only display."""
     packet_name = display.get("bank_name")
     if isinstance(packet_name, str) and packet_name.strip():
         return normalize_bank_name(packet_name) == normalize_bank_name(terminal_bank_name)
     packet_hash = display.get("bank_name_hash")
     if isinstance(packet_hash, str) and packet_hash.strip():
         return packet_hash == terminal_bank_hash
-    return False
+    # Wire v2.2: only msk (or empty display) — accept if msk matches terminal, or no msk sent.
+    packet_msk = display.get("masked_account_suffix")
+    if not isinstance(packet_msk, str) or not packet_msk.strip():
+        return True
+    if not terminal_masked_suffix.strip():
+        return True
+    return packet_msk.strip() == terminal_masked_suffix.strip()
 
 
 def canonical_json(data: dict[str, Any]) -> bytes:

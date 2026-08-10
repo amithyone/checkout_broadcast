@@ -66,6 +66,7 @@ export function normalizeBleReadForVerify(gattJson) {
       payload,
       signature_alg: String(gattJson.signature_alg ?? gattJson.signatureAlg ?? "ed25519"),
       signature: gattJson.signature,
+      wireSource: isCompactWirePayload(gattJson.payload) ? "wire" : "legacy",
     };
   }
 
@@ -78,6 +79,7 @@ export function normalizeBleReadForVerify(gattJson) {
       payload,
       signature_alg: String(gattJson.alg ?? gattJson.signature_alg ?? "ed25519"),
       signature: gattJson.sig,
+      wireSource: "wire",
     };
   }
 

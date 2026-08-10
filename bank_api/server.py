@@ -37,6 +37,7 @@ from checkout_broadcast.signing import (
 )
 
 from bank_api.auth import RateLimiter, require_admin_key
+from bank_api.ble_wire import is_presence_payload, normalize_ble_packet
 from bank_api.config import Settings
 from bank_api.database import BankDatabase
 
@@ -75,6 +76,7 @@ class VerifySuccess(BaseModel):
     masked_account_suffix: str
     session_uuid: str
     terminal_id: str
+    session_kind: Optional[str] = None
     recipient_account: Optional[str] = None
     recipient_bank_code: Optional[str] = None
 
@@ -181,7 +183,7 @@ def get_terminal(terminal_id: str) -> dict[str, Any]:
 
 
 @app.post("/verify-broadcast")
-def verify_broadcast(request: Request, packet: SignedPacket) -> dict[str, Any]:
+async def verify_broadcast(request: Request) -> dict[str, Any]:
     client_ip = request.client.host if request.client else "unknown"
     if not verify_limiter.allow(client_ip):
         retry = verify_limiter.retry_after(client_ip)
@@ -191,9 +193,32 @@ def verify_broadcast(request: Request, packet: SignedPacket) -> dict[str, Any]:
             headers={"Retry-After": str(retry)},
         )
 
-    payload = payload_for_signing(packet.payload)
-    terminal_id = payload["terminal_id"]
-    terminal = db.get_terminal(terminal_id)
+    try:
+        raw = await request.json()
+    except Exception:
+        return VerifyFailure(error="Invalid packet").model_dump()
+    if not isinstance(raw, dict):
+        return VerifyFailure(error="Invalid packet").model_dump()
+
+    normalized = normalize_ble_packet(raw)
+    payload = normalized.get("payload")
+    if not isinstance(payload, dict):
+        # Fallback: pydantic-shaped body already expanded
+        try:
+            packet = SignedPacket.model_validate(raw)
+            payload = payload_for_signing(packet.payload)
+            normalized = {
+                "payload": payload,
+                "signature_alg": packet.signature_alg,
+                "signature": packet.signature,
+            }
+        except Exception:
+            return VerifyFailure(error="Invalid packet").model_dump()
+
+    terminal_id = payload.get("terminal_id")
+    if not terminal_id:
+        return VerifyFailure(error="Unknown terminal_id").model_dump()
+    terminal = db.get_terminal(str(terminal_id))
     if not terminal:
         return VerifyFailure(error="Unknown terminal_id").model_dump()
 
@@ -203,31 +228,49 @@ def verify_broadcast(request: Request, packet: SignedPacket) -> dict[str, Any]:
     if not is_timestamp_valid(timestamp_ms):
         return VerifyFailure(error="Timestamp outside allowed window").model_dump()
 
-    session = payload["session_uuid_v4"]
-    if not db.consume_session(session, terminal_id):
+    session = str(payload.get("session_uuid_v4") or "")
+    if not session:
+        return VerifyFailure(error="Invalid session").model_dump()
+
+    presence = is_presence_payload(payload)
+    session_kind = "presence" if presence else "pos_checkout"
+    if not presence and not db.consume_session(session, str(terminal_id)):
         return VerifyFailure(error="Session UUID already used (replay)").model_dump()
 
-    display = payload["account_info_public_display"]
-    if not bank_display_matches(terminal["bank_name"], display, terminal["bank_name_hash"]):
+    display = payload.get("account_info_public_display") or {}
+    if not isinstance(display, dict):
+        display = {}
+    if not bank_display_matches(
+        terminal["bank_name"],
+        display,
+        terminal["bank_name_hash"],
+        terminal.get("masked_account_suffix") or "",
+    ):
         return VerifyFailure(error="Bank name mismatch").model_dump()
 
-    signature_alg = packet.signature_alg or terminal.get("signature_alg") or "HMAC-SHA256"
+    signature_alg = normalized.get("signature_alg") or terminal.get("signature_alg") or "HMAC-SHA256"
+    signature = str(normalized.get("signature") or "")
     if not verify_packet(
         payload,
         signature_alg,
-        packet.signature,
+        signature,
         signing_key=terminal.get("signing_key") or "",
         public_key=terminal.get("public_key"),
     ):
         return VerifyFailure(error="Invalid signature").model_dump()
 
-    tx = payload["transaction_details"]
+    tx = payload.get("transaction_details") or {}
+    try:
+        amount = int(tx.get("total_amount_ngn") or 0)
+    except (TypeError, ValueError):
+        amount = 0
     return VerifySuccess(
         merchant_name=terminal["merchant_name"],
-        amount_ngn=tx["total_amount_ngn"],
+        amount_ngn=0 if presence else amount,
+        session_kind=session_kind,
         masked_account_suffix=terminal["masked_account_suffix"],
         session_uuid=session,
-        terminal_id=terminal_id,
+        terminal_id=str(terminal_id),
         recipient_account=terminal.get("account_number"),
         recipient_bank_code=terminal.get("recipient_bank_code"),
     ).model_dump()

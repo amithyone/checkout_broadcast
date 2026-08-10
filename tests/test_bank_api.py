@@ -239,3 +239,47 @@ def test_ed25519_register_and_verify(client):
     body = verify.json()
     assert body["valid"] is True
     assert body["amount_ngn"] == 3200
+
+
+def test_compact_wire_presence_does_not_burn_session(client):
+    from bank_api.ble_wire import normalize_ble_packet
+    from checkout_broadcast.signing import generate_ed25519_keypair, sign_packet
+
+    keys = generate_ed25519_keypair()
+    client.post(
+        "/terminals/register",
+        headers={"X-Admin-Key": ADMIN_KEY},
+        json={
+            "terminal_id": "CP-WIRE",
+            "signature_alg": "ed25519",
+            "signing_key": keys["signing_key"],
+            "public_key": keys["public_key"],
+            "merchant_name": "Wire Shop",
+            "bank_name": "kuda",
+            "masked_account_suffix": "***4863",
+        },
+    )
+    wire = {
+        "p": {
+            "v": 2.1,
+            "sid": "66666666-6666-4666-8666-666666666666",
+            "tid": "CP-WIRE",
+            "ts": int(time.time() * 1000),
+            "msk": "***4863",
+            "k": "presence",
+        },
+        "alg": "ed25519",
+        "sig": "pending",
+    }
+    expanded = normalize_ble_packet(wire)
+    alg, signature = sign_packet(expanded["payload"], keys["signing_key"], "ed25519")
+    wire["alg"] = alg
+    wire["sig"] = signature
+
+    first = client.post("/verify-broadcast", json=wire).json()
+    assert first["valid"] is True
+    assert first["session_kind"] == "presence"
+    assert first["amount_ngn"] == 0
+    # Presence may be verified again with same session
+    second = client.post("/verify-broadcast", json=wire).json()
+    assert second["valid"] is True

@@ -2,6 +2,8 @@
 
 How **POS terminals**, **wallet apps**, and **third-party services** integrate with CheckoutPay **Pay at shop** on `check-outpay.com`.
 
+This matches what **CheckoutNow** ships in production (compact BLE wire → expand → verify).
+
 ## URLs
 
 | Env var / config | Value |
@@ -10,7 +12,7 @@ How **POS terminals**, **wallet apps**, and **third-party services** integrate w
 | Verify endpoint | `POST …/verify-broadcast` |
 | Health | `GET …/health` |
 
-Full contract: [spec/verify-api.md](../spec/verify-api.md)
+Full contract: [spec/verify-api.md](../spec/verify-api.md) · BLE wire: [spec/ble-transport.md](../spec/ble-transport.md)
 
 ## Terminal credentials (from merchant dashboard)
 
@@ -25,7 +27,14 @@ After admin enables Pay at shop, merchants open **Dashboard → Pay at shop** an
 
 CheckoutPay stores only the **public key** for verification.
 
-## POS (sender) — Python example (Ed25519)
+## POS (sender) — production shape
+
+1. Sign the **expanded** canonical payload with **Ed25519**.
+2. Broadcast compact GATT JSON `{ p, alg, sig }` (see [ble-transport.md](../spec/ble-transport.md)).
+3. Put checkout amount in **kobo** (`amt`: ₦25.00 → `2500`).
+4. Idle till / “Pay at shop” without a cart: omit `amt` or `amt: 0`, optional `"k":"presence"`; refresh `ts` and re-sign periodically.
+
+Python SDK (full envelope for local/dev; for Cheko production prefer compact wire under 512 bytes):
 
 ```python
 from checkout_broadcast import CheckoutBroadcastAddon, CheckoutBroadcastConfig, CheckoutData
@@ -42,53 +51,65 @@ addon = CheckoutBroadcastAddon(CheckoutBroadcastConfig(
 ))
 
 addon.start()
+# amount_ngn here is major Naira in the open SDK helper — Cheko wire uses kobo on BLE
 addon.send_checkout(CheckoutData(amount_ngn=2500, item_count=3))
 ```
 
-The SDK automatically sets `payload.timestamp_ms = int(time.time() * 1000)` before signing.
-
-## Wallet app (receiver)
+## Wallet app (receiver) — required expand step
 
 ```typescript
-import { CheckoutBroadcastAddon } from "@checkout-broadcast/web";
+import {
+  CheckoutBroadcastAddon,
+  normalizeBleReadForVerify,
+  verifyRequestBody,
+  wireKoboToNaira,
+} from "@checkout-broadcast/web";
 
-const addon = new CheckoutBroadcastAddon({
-  role: "receive",
-  bankApiUrl: "https://check-outpay.com/api/v1/broadcast",
-  transport: "ble",
-  onPaymentReceived: (payment) => prefillTransfer(payment),
-  onError: (err) => showManualTransferFallback(err.message),
+// After reading GATT UTF-8 JSON:
+const envelope = normalizeBleReadForVerify(gattJson);
+if (!envelope) throw new Error("Unrecognized BLE packet");
+
+const res = await fetch("https://check-outpay.com/api/v1/broadcast/verify-broadcast", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(verifyRequestBody(envelope)),
 });
+const body = await res.json();
+if (!body.valid) throw new Error(body.error ?? "verify failed");
 
-await addon.start();
+const amountMajor =
+  envelope.wireSource === "wire" ? wireKoboToNaira(body.amount_ngn) : body.amount_ngn;
+
+if (body.session_kind === "presence" || amountMajor <= 0) {
+  // customer enters amount
+} else {
+  // pre-fill transfer with amountMajor + body.recipient_account / recipient_bank_code
+}
 ```
 
-The SDK:
+CheckoutPay’s Laravel verify controller **also** expands compact `{p,alg,sig}` if the wallet posts wire JSON directly — but wallet apps should still expand locally so timestamps and UX (presence / kobo) are correct before the HTTP call.
 
-- Validates `timestamp_ms` is present before calling the bank
-- POSTs the **unchanged** signed BLE packet to `/verify-broadcast`
-- Surfaces backend `error` strings (e.g. `Missing timestamp_ms in payload`)
-
-## Common mistakes
+### Common mistakes
 
 | Symptom | Cause |
 |---------|--------|
-| `timestamp_ms undefined` in app logs | POS did not include field, or app rebuilt payload without it |
-| `Missing timestamp_ms in payload` from API | Same — fix on POS; app must forward full JSON |
-| `Timestamp outside allowed window` | Stale BLE packet or wrong device clock |
-| `Invalid signature` | Wrong signing key or modified payload after sign |
-| `Bank name hash mismatch` | POS `bank_name` ≠ merchant settlement bank in dashboard |
+| `Invalid signature` on real Cheko till | Posted compact wire **without** expand, or invented `currency_code` / `item_count` / `bank_name` during expand |
+| Amount 100× too large | Treated kobo as whole Naira — use `÷ 100` for wire |
+| Presence opens ₦0 transfer | Idle beacon — prompt for amount when `session_kind=presence` or amount 0 |
+| `timestamp_ms` missing | Dropped `ts` during expand |
+| `Bank name mismatch` | POS bank / msk ≠ dashboard settlement account |
 
-## Open SDK vs CheckoutPay
+## Open SDK vs CheckoutPay production
 
-| | Open SDK (v2.0) | CheckoutPay Pay at shop |
-|--|-----------------|-------------------------|
-| Signature | HMAC-SHA256 | Ed25519 |
-| `protocol_version` | `2.0` | `1` or `2.0` |
-| Terminal registration | `POST /terminals/register` + admin key | Merchant dashboard auto-provisions |
-| Reference | [pos-app-integration.md](pos-app-integration.md) | This guide |
+| | Open SDK demos | CheckoutPay / CheckoutNow production |
+|--|----------------|--------------------------------------|
+| BLE JSON | Full `{payload, signature_alg, signature}` | Compact `{p, alg, sig}` |
+| Signature | Often HMAC-SHA256 | **Ed25519** |
+| Amount on wire | Whole Naira in many fixtures | **Kobo** |
+| Presence | Not in older demos | Idle till supported |
+| Terminal registration | `POST /terminals/register` + admin key | Merchant dashboard |
 
-Both work on the same CheckoutPay verify endpoint.
+Both can hit the same CheckoutPay verify endpoint when expanded correctly.
 
 ## Testing
 
@@ -96,16 +117,6 @@ Both work on the same CheckoutPay verify endpoint.
 # Reference bank API (local)
 ./deploy/smoke-test.sh
 
-# Against CheckoutPay staging/production
-PYTHONPATH="sdk/python:." python -m checkout_broadcast.cli demo-send \
-  --amount 2500 \
-  --bank-url https://check-outpay.com/api/v1/broadcast
+# Expand helper (Node)
+node -e "import { normalizeBleReadForVerify } from './demos/web-receiver/ble-wire-expand.js'; console.log(normalizeBleReadForVerify({p:{v:2.1,sid:'…',tid:'CP-1',ts:Date.now(),amt:649,msk:'***1234'},alg:'ed25519',sig:'x'}))"
 ```
-
-Run conformance tests: `pytest tests/test_conformance.py -k golden`
-
-## Further reading
-
-- [banking-app-integration.md](banking-app-integration.md) — receiver UX and Android/iOS
-- [pos-app-integration.md](pos-app-integration.md) — HMAC POS flow
-- [deploy/checkoutpay-production.md](../deploy/checkoutpay-production.md) — server deploy notes

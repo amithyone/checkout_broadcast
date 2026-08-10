@@ -11,24 +11,23 @@ Checkout Broadcast lets Nigerian businesses accept payments without customers ty
 
 ## Documentation
 
-- **[POS app integration guide](pos-app-integration.md)** — for shop terminals, Windows POS, merchant dashboards
+- **[BLE transport (production wire)](../spec/ble-transport.md)** — compact `{p,alg,sig}`, kobo amounts, presence — **start here**
+- **[Verify API contract](../spec/verify-api.md)** — expand → `/verify-broadcast` request/response
+- **[CheckoutPay integration guide](checkoutpay-integration.md)** — Pay at shop on `check-outpay.com` (matches CheckoutNow)
 - **[Banking app integration guide](banking-app-integration.md)** — for Kuda, OPay, GTBank, and other wallet/banking apps
-- **[CheckoutPay integration guide](checkoutpay-integration.md)** — Pay at shop on `check-outpay.com` (Ed25519, dashboard credentials)
-- **[Verify API contract](../spec/verify-api.md)** — request/response and error strings for `/verify-broadcast`
+- **[POS app integration guide](pos-app-integration.md)** — for shop terminals, Windows POS, merchant dashboards
 - **[Unified addon API](../spec/addon-api.md)** — cross-platform API contract
 - **[Signing rules](../spec/signing-rules.md)** — HMAC-SHA256 and Ed25519 verification
-- **[BLE transport](../spec/ble-transport.md)** — GATT service UUIDs and radio flow
 
-## End-to-end flow
+## End-to-end flow (production / CheckoutNow)
 
 ```
-POS checkout complete
-    → SDK signs payload (amount + terminal ID + session UUID)
-    → BLE broadcast (or simulated in dev)
-    → Banking app receives packet
-    → Banking app calls YOUR bank API: POST /verify-broadcast
-    → Bank API validates signature + replay + merchant registry
-    → Banking app pre-fills transfer UI
+POS / Cheko signs expanded payload (Ed25519), amount in kobo
+    → BLE GATT advertises compact { p, alg, sig }  (or presence with amt=0)
+    → Wallet reads characteristic cbbc0002
+    → Wallet expands wire → POST /verify-broadcast
+    → Bank validates signature + registry (presence does not burn session)
+    → Wallet pre-fills transfer (kobo÷100) or asks for amount if presence
     → Customer confirms with PIN / biometrics
     → Normal bank transfer API debits customer account
 ```
