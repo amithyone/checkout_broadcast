@@ -10,28 +10,24 @@ use Illuminate\Support\Str;
 
 /**
  * Checkout Broadcast verify API for check-outpay.com
- * Port of checkout_broadcast/bank_api/server.py — drop into checkout Laravel app.
- *
- * Accepts:
- * - Full envelope { payload, signature_alg, signature }
- * - Compact BLE wire { p, alg, sig } (expanded before Ed25519 / HMAC verify)
+ * Session stays open until paid/cancelled — do not reject verify on timestamp_ms alone while open.
  */
 class BroadcastVerifyController extends Controller
 {
-    private const MAX_AGE_MS = 600_000;
-
     public function health(): JsonResponse
     {
         $terminals = DB::table('broadcast_terminals')->where('active', 1)->count();
+
         return response()->json([
             'ok' => true,
+            'status' => 'ok',
             'terminals' => $terminals,
         ]);
     }
 
     public function verifyBroadcast(Request $request): JsonResponse
     {
-        $key = 'broadcast-verify:' . $request->ip();
+        $key = 'broadcast-verify:'.$request->ip();
         if (RateLimiter::tooManyAttempts($key, (int) config('broadcast.rate_limit_verify', 120))) {
             return response()->json([
                 'valid' => false,
@@ -47,6 +43,8 @@ class BroadcastVerifyController extends Controller
         }
 
         $terminalId = $payload['terminal_id'] ?? '';
+        $sessionUuid = $payload['session_uuid_v4'] ?? '';
+
         $terminal = DB::table('broadcast_terminals')
             ->where('terminal_id', $terminalId)
             ->where('active', 1)
@@ -56,47 +54,96 @@ class BroadcastVerifyController extends Controller
             return response()->json(['valid' => false, 'error' => 'Unknown terminal_id']);
         }
 
-        $timestampMs = (int) ($payload['timestamp_ms'] ?? 0);
-        if (abs((int) (microtime(true) * 1000) - $timestampMs) > self::MAX_AGE_MS) {
-            return response()->json(['valid' => false, 'error' => 'Timestamp outside allowed window']);
+        if (! $this->merchantBroadcastActive($terminal)) {
+            return response()->json([
+                'valid' => false,
+                'error' => 'Pay at shop is not active for this merchant',
+            ]);
         }
 
-        $amount = (int) ($payload['transaction_details']['total_amount_ngn'] ?? 0);
-        $kindRaw = strtolower(trim((string) ($payload['session_kind'] ?? '')));
-        $isPresence = $kindRaw === 'presence' || $kindRaw === 'idle' || $kindRaw === 'beacon' || $amount <= 0;
-        $sessionKind = $isPresence ? 'presence' : 'pos_checkout';
+        $sessionStatus = $this->sessionStatus($sessionUuid, $terminalId);
+        if ($sessionStatus === 'paid') {
+            return response()->json([
+                'valid' => false,
+                'error' => 'Session already paid',
+                'session_status' => 'paid',
+            ]);
+        }
+        if ($sessionStatus === 'cancelled') {
+            return response()->json([
+                'valid' => false,
+                'error' => 'Session cancelled',
+                'session_status' => 'cancelled',
+            ]);
+        }
 
-        $session = $payload['session_uuid_v4'] ?? '';
-        // Presence / idle beacons may reuse the same UUID while the till is idle —
-        // do not burn replay protection until a checkout amount is verified.
-        if ($session === '') {
-            return response()->json(['valid' => false, 'error' => 'Invalid session']);
+        $packetAmount = (int) ($payload['transaction_details']['total_amount_ngn'] ?? 0);
+        $sessionKindHint = strtolower((string) ($payload['session_kind'] ?? ''));
+        $isPresence = in_array($sessionKindHint, ['presence', 'idle', 'beacon'], true)
+            || $packetAmount <= 0;
+
+        // Presence packets must stay within ~10 minutes (POS re-signs every 2–5 min).
+        if ($isPresence && ! $this->timestampWithinWindow($payload['timestamp_ms'] ?? null, 10)) {
+            return response()->json([
+                'valid' => false,
+                'error' => 'Timestamp outside allowed window',
+                'session_kind' => 'presence',
+            ]);
         }
-        if (! $isPresence && ! $this->consumeSession($session, $terminalId)) {
-            return response()->json(['valid' => false, 'error' => 'Session UUID already used (replay)']);
-        }
-        if ($isPresence && ! Str::isUuid($session)) {
-            return response()->json(['valid' => false, 'error' => 'Invalid session']);
+
+        // Open / unknown checkout: do not reject solely on packet age while session is still open.
+        $signatureAlg = $packet['signature_alg'] ?? 'HMAC-SHA256';
+        if (! $this->verifySignature($payload, $terminal->signing_key, $packet['signature'] ?? '', $signatureAlg)) {
+            return response()->json([
+                'valid' => false,
+                'error' => 'Invalid signature',
+                'session_status' => $sessionStatus ?: 'open',
+                'session_kind' => $isPresence ? 'presence' : 'pos_checkout',
+            ]);
         }
 
         $display = $payload['account_info_public_display'] ?? [];
-        if (! $this->bankDisplayMatches($terminal->bank_name, $terminal->bank_name_hash, $display, $terminal->masked_account_suffix ?? '')) {
-            return response()->json(['valid' => false, 'error' => 'Bank name mismatch']);
+        $bankHash = $display['bank_name_hash'] ?? null;
+        // Minimal v2.1 online wire: no bank hash on packet — resolved from terminal registry.
+        if ($bankHash !== null && $bankHash !== $terminal->bank_name_hash) {
+            return response()->json([
+                'valid' => false,
+                'error' => 'Bank name hash mismatch',
+                'session_status' => $sessionStatus ?: 'open',
+            ]);
         }
 
-        $alg = strtolower(trim((string) ($packet['signature_alg'] ?? 'HMAC-SHA256')));
-        if (! $this->verifySignature($payload, $terminal->signing_key, $packet['signature'] ?? '', $alg)) {
-            return response()->json(['valid' => false, 'error' => 'Invalid signature']);
+        $wireMask = $display['masked_account_suffix'] ?? null;
+        if (is_string($wireMask) && $wireMask !== '' && ! empty($terminal->masked_account_suffix)
+            && $wireMask !== $terminal->masked_account_suffix) {
+            return response()->json([
+                'valid' => false,
+                'error' => 'Masked account suffix mismatch',
+                'session_status' => $sessionStatus ?: 'open',
+            ]);
         }
+
+        $amountNgn = $isPresence ? 0.0 : $this->displayAmountNgn($packetAmount, $signatureAlg);
+        $sessionKind = $isPresence ? 'presence' : 'pos_checkout';
+
+        // Checkout: track open session (anti-replay / paid). Presence: do NOT burn UUID —
+        // idle beacons reuse / rotate sid for many phones.
+        if (! $isPresence) {
+            $this->ensureOpenSession($sessionUuid, $terminalId, $packetAmount);
+        }
+
+        $maskedSuffix = $display['masked_account_suffix'] ?? $terminal->masked_account_suffix;
 
         return response()->json([
             'valid' => true,
             'merchant_name' => $terminal->merchant_name,
-            'amount_ngn' => $isPresence ? 0 : $amount,
+            'amount_ngn' => $amountNgn,
             'session_kind' => $sessionKind,
-            'masked_account_suffix' => $terminal->masked_account_suffix,
-            'session_uuid' => $session,
+            'masked_account_suffix' => $maskedSuffix,
+            'session_uuid' => $sessionUuid,
             'terminal_id' => $terminalId,
+            'terminal_label' => $this->terminalPickerLabel($terminalId),
+            'session_status' => 'open',
             'recipient_account' => $terminal->account_number,
             'recipient_bank_code' => $terminal->recipient_bank_code,
         ]);
@@ -111,15 +158,17 @@ class BroadcastVerifyController extends Controller
 
         $data = $request->validate([
             'terminal_id' => 'required|string|max:64',
-            'signing_key' => 'required|string|min:16|max:256',
+            'signing_key' => 'required|string|min:16|max:512',
+            'signature_alg' => 'nullable|string|in:HMAC-SHA256,ed25519',
             'merchant_name' => 'required|string|max:128',
             'bank_name' => 'required|string|max:64',
             'masked_account_suffix' => 'required|regex:/^\*{3}[0-9]{4}$/',
             'account_number' => 'nullable|digits:10',
             'recipient_bank_code' => 'nullable|string|max:6',
+            'business_id' => 'nullable|integer',
         ]);
 
-        $bankNameHash = 'sha256:' . hash('sha256', strtolower(trim($data['bank_name'])));
+        $bankNameHash = 'sha256:'.hash('sha256', strtolower(trim($data['bank_name'])));
 
         DB::table('broadcast_terminals')->updateOrInsert(
             ['terminal_id' => $data['terminal_id']],
@@ -131,6 +180,7 @@ class BroadcastVerifyController extends Controller
                 'masked_account_suffix' => $data['masked_account_suffix'],
                 'account_number' => $data['account_number'] ?? null,
                 'recipient_bank_code' => $data['recipient_bank_code'] ?? null,
+                'business_id' => $data['business_id'] ?? null,
                 'active' => 1,
                 'updated_at' => now(),
                 'created_at' => now(),
@@ -141,128 +191,207 @@ class BroadcastVerifyController extends Controller
     }
 
     /**
+     * POS Settings “Test connection” — push local Ed25519 seed so verify accepts this till.
+     * Header: X-Terminal-Api-Key (CheckoutPay terminal / merchant API key).
+     */
+    public function syncSigningKey(Request $request): JsonResponse
+    {
+        $apiKey = (string) $request->header('X-Terminal-Api-Key', '');
+        if ($apiKey === '') {
+            return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);
+        }
+
+        $data = $request->validate([
+            'terminal_id' => 'required|string|max:64',
+            'signing_key' => 'required|string|min:16|max:512',
+        ]);
+
+        $terminal = DB::table('broadcast_terminals')
+            ->where('terminal_id', $data['terminal_id'])
+            ->where('active', 1)
+            ->first();
+
+        if (! $terminal) {
+            return response()->json(['ok' => false, 'error' => 'Unknown terminal'], 404);
+        }
+
+        if (isset($terminal->api_key) && $terminal->api_key !== null && $terminal->api_key !== '') {
+            if (! hash_equals((string) $terminal->api_key, $apiKey)) {
+                return response()->json(['ok' => false, 'error' => 'Unauthorized'], 401);
+            }
+        }
+
+        $signingKey = preg_replace('/\s+/', '', $data['signing_key']) ?? '';
+        if ($this->ed25519PublicKeyFromSigningKey($signingKey) === null
+            && strlen($signingKey) < 16) {
+            return response()->json(['ok' => false, 'error' => 'Invalid signing_key'], 422);
+        }
+
+        DB::table('broadcast_terminals')
+            ->where('terminal_id', $data['terminal_id'])
+            ->update([
+                'signing_key' => $signingKey,
+                'updated_at' => now(),
+            ]);
+
+        return response()->json(['ok' => true, 'terminal_id' => $data['terminal_id']]);
+    }
+
+    /** Mark session paid (transfer webhook / POS callback). */
+    public function markSessionPaid(Request $request): JsonResponse
+    {
+        $sessionUuid = $request->input('session_uuid');
+        if (! Str::isUuid($sessionUuid)) {
+            return response()->json(['ok' => false, 'error' => 'Invalid session_uuid'], 422);
+        }
+
+        DB::table('broadcast_sessions')->updateOrInsert(
+            ['session_uuid' => $sessionUuid],
+            ['status' => 'paid', 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        return response()->json(['ok' => true, 'session_status' => 'paid']);
+    }
+
+    private function sessionStatus(string $sessionUuid, string $terminalId): ?string
+    {
+        if ($sessionUuid === '' || ! Str::isUuid($sessionUuid)) {
+            return null;
+        }
+
+        $row = DB::table('broadcast_sessions')
+            ->where('session_uuid', $sessionUuid)
+            ->where('terminal_id', $terminalId)
+            ->first();
+
+        return $row?->status;
+    }
+
+    private function ensureOpenSession(string $sessionUuid, string $terminalId, int $amountKobo): void
+    {
+        if ($sessionUuid === '' || ! Str::isUuid($sessionUuid)) {
+            return;
+        }
+
+        DB::table('broadcast_sessions')->updateOrInsert(
+            ['session_uuid' => $sessionUuid],
+            [
+                'terminal_id' => $terminalId,
+                'status' => 'open',
+                'amount_kobo' => $amountKobo,
+                'updated_at' => now(),
+                'created_at' => now(),
+            ]
+        );
+    }
+
+    private function merchantBroadcastActive(object $terminal): bool
+    {
+        if (! $terminal->business_id) {
+            return true;
+        }
+
+        $business = DB::table('businesses')
+            ->where('id', $terminal->business_id)
+            ->first();
+
+        if (! $business) {
+            return true;
+        }
+
+        return (bool) ($business->broadcast_pay_at_shop_enabled ?? true)
+            && (bool) ($business->broadcast_pay_at_shop_active ?? true)
+            && (bool) ($business->is_active ?? true);
+    }
+
+    /**
      * Accept full envelope or minimal BLE wire { p, alg, sig }.
      * Wire must be expanded before Ed25519 verify — signature covers canonical payload keys.
      */
-    private function normalizeBlePacket(array $raw): array
+    private function normalizeBlePacket(array $packet): array
     {
-        if (isset($raw['payload']) && is_array($raw['payload'])) {
-            return [
-                'payload' => $raw['payload'],
-                'signature_alg' => $raw['signature_alg'] ?? $raw['alg'] ?? 'HMAC-SHA256',
-                'signature' => $raw['signature'] ?? $raw['sig'] ?? '',
-            ];
+        if (isset($packet['payload']) && is_array($packet['payload'])) {
+            return $packet;
         }
 
-        $p = $raw['p'] ?? null;
+        $p = $packet['p'] ?? null;
         if (! is_array($p)) {
-            return $raw;
+            return $packet;
         }
 
-        $sid = trim((string) ($p['sid'] ?? ''));
-        $tid = trim((string) ($p['tid'] ?? ''));
-        $sig = trim((string) ($raw['sig'] ?? $raw['signature'] ?? ''));
-        if ($sid === '' || $tid === '' || $sig === '') {
-            return $raw;
-        }
-
-        $protocolVersion = $p['v'] ?? 2.1;
-        if (is_string($protocolVersion) && is_numeric($protocolVersion)) {
-            $protocolVersion = (float) $protocolVersion;
-        }
-
-        $amtPresent = array_key_exists('amt', $p);
-        $amt = $amtPresent ? (int) $p['amt'] : 0;
-        $kind = strtolower(trim((string) ($p['k'] ?? '')));
-        // Only put session_kind on the payload when POS sent `k` (must match signed bytes).
-        $payload = [
-            'protocol_version' => $protocolVersion,
-            'timestamp_ms' => (int) ($p['ts'] ?? 0),
-            'session_uuid_v4' => $sid,
-            'terminal_id' => $tid,
-            'transaction_details' => [
-                'total_amount_ngn' => $amt,
-            ],
-        ];
-        if ($kind === 'presence' || $kind === 'idle' || $kind === 'beacon') {
-            $payload['session_kind'] = 'presence';
-        } elseif ($kind === 'pos_checkout' || $kind === 'checkout') {
-            $payload['session_kind'] = 'pos_checkout';
-        }
-
-        $msk = trim((string) ($p['msk'] ?? ''));
-        if ($msk !== '') {
-            $payload['account_info_public_display'] = [
-                'masked_account_suffix' => $msk,
-            ];
-        }
-
+        // Expand only signed fields — do not invent session_kind / currency / bank_name.
         return [
-            'payload' => $payload,
-            'signature_alg' => $raw['alg'] ?? $raw['signature_alg'] ?? 'ed25519',
-            'signature' => $sig,
+            'payload' => [
+                'protocol_version' => $p['v'] ?? 2.1,
+                'session_uuid_v4' => (string) ($p['sid'] ?? ''),
+                'terminal_id' => (string) ($p['tid'] ?? ''),
+                'timestamp_ms' => (int) ($p['ts'] ?? 0),
+                'transaction_details' => [
+                    'total_amount_ngn' => (int) ($p['amt'] ?? 0),
+                ],
+                'account_info_public_display' => [
+                    'masked_account_suffix' => (string) ($p['msk'] ?? '***0000'),
+                ],
+            ],
+            'signature_alg' => $packet['alg'] ?? $packet['signature_alg'] ?? 'ed25519',
+            'signature' => $packet['sig'] ?? $packet['signature'] ?? '',
         ];
     }
 
-    private function consumeSession(string $sessionUuid, string $terminalId): bool
+    private function timestampWithinWindow(mixed $timestampMs, int $maxAgeMinutes): bool
     {
-        if (! Str::isUuid($sessionUuid)) {
+        if ($timestampMs === null || $timestampMs === '') {
             return false;
         }
-        $exists = DB::table('broadcast_used_sessions')->where('session_uuid', $sessionUuid)->exists();
-        if ($exists) {
+        $ts = (int) $timestampMs;
+        if ($ts <= 0) {
             return false;
         }
-        DB::table('broadcast_used_sessions')->insert([
-            'session_uuid' => $sessionUuid,
-            'terminal_id' => $terminalId,
-            'used_at' => (int) (microtime(true) * 1000),
-        ]);
+        // Accept seconds or milliseconds
+        if ($ts < 1_000_000_000_000) {
+            $ts *= 1000;
+        }
+        $ageMs = (int) (microtime(true) * 1000) - $ts;
+        if ($ageMs < -120_000) {
+            return false; // too far in the future
+        }
 
-        return true;
+        return $ageMs <= $maxAgeMinutes * 60 * 1000;
     }
 
-    /**
-     * Plain bank_name / bank_name_hash, or wire packets that only send masked_account_suffix.
-     * Merchant + bank settlement come from terminal registry after verify.
-     */
-    private function bankDisplayMatches(
-        string $terminalBankName,
-        string $terminalBankHash,
-        array $display,
-        string $terminalMaskedSuffix = ''
-    ): bool {
-        $packetName = trim((string) ($display['bank_name'] ?? ''));
-        if ($packetName !== '') {
-            return $this->normalizeBankName($packetName) === $this->normalizeBankName($terminalBankName);
-        }
-        $packetHash = trim((string) ($display['bank_name_hash'] ?? ''));
-        if ($packetHash !== '') {
-            return hash_equals($terminalBankHash, $packetHash);
-        }
-
-        // Wire v2.2: only msk (or empty display) — accept if msk matches terminal, or no msk sent.
-        $packetMsk = trim((string) ($display['masked_account_suffix'] ?? ''));
-        if ($packetMsk === '') {
-            return true;
-        }
-        if ($terminalMaskedSuffix === '') {
-            return true;
-        }
-
-        return hash_equals($terminalMaskedSuffix, $packetMsk);
-    }
-
-    private function normalizeBankName(string $bankName): string
+    private function displayAmountNgn(int $packetAmount, string $signatureAlg): float
     {
-        return strtolower(trim($bankName));
+        if ($packetAmount <= 0) {
+            return 0.0;
+        }
+        if (strtolower($signatureAlg) === 'ed25519') {
+            return round($packetAmount / 100, 2);
+        }
+
+        return (float) $packetAmount;
     }
 
-    /**
-     * Verify payload signature.
-     * - HMAC-SHA256: signing_key is shared secret (UTF-8)
-     * - ed25519: signing_key is base64 (or hex) public key; signature is base64
-     */
+    private function terminalPickerLabel(string $terminalId): string
+    {
+        $upper = strtoupper($terminalId);
+        if (str_starts_with($upper, 'CP-')) {
+            return $terminalId;
+        }
+        if (str_starts_with($upper, 'TERM-')) {
+            $suffix = substr($terminalId, strrpos($terminalId, '-') + 1);
+            if (ctype_digit($suffix)) {
+                return str_pad($suffix, 2, '0', STR_PAD_LEFT);
+            }
+        }
+        preg_match_all('/\d/', $terminalId, $matches);
+        $digits = implode('', $matches[0] ?? []);
+        if ($digits !== '') {
+            return str_pad(substr($digits, -2), 2, '0', STR_PAD_LEFT);
+        }
+
+        return substr($terminalId, 0, 8);
+    }
+
     private function verifySignature(array $payload, string $signingKey, string $signatureB64, string $alg): bool
     {
         if ($signatureB64 === '') {
@@ -270,61 +399,43 @@ class BroadcastVerifyController extends Controller
         }
 
         $canonical = json_encode($this->sortKeysRecursive($payload), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        if ($canonical === false) {
-            return false;
+
+        if (strtolower($alg) === 'ed25519') {
+            if (! function_exists('sodium_crypto_sign_verify_detached')) {
+                return false;
+            }
+            $message = $canonical;
+            $signature = base64_decode($signatureB64, true);
+            if ($signature === false) {
+                return false;
+            }
+            $publicKey = $this->ed25519PublicKeyFromSigningKey($signingKey);
+            if ($publicKey === null) {
+                return false;
+            }
+
+            return sodium_crypto_sign_verify_detached($signature, $message, $publicKey);
         }
 
-        if ($alg === 'ed25519' || $alg === 'eddsa') {
-            return $this->verifyEd25519($canonical, $signingKey, $signatureB64);
-        }
-
-        // Default: HMAC-SHA256 (legacy / reference bank_api)
         $expected = base64_encode(hash_hmac('sha256', $canonical, $signingKey, true));
 
         return hash_equals($expected, $signatureB64);
     }
 
-    private function verifyEd25519(string $message, string $publicKeyRaw, string $signatureB64): bool
+    /** Derive Ed25519 public key from stored seed (CheckoutNow one-time key format). */
+    private function ed25519PublicKeyFromSigningKey(string $signingKey): ?string
     {
-        if (! function_exists('sodium_crypto_sign_verify_detached')) {
-            return false;
-        }
-
-        $signature = base64_decode($signatureB64, true);
-        if ($signature === false || strlen($signature) !== SODIUM_CRYPTO_SIGN_BYTES) {
-            return false;
-        }
-
-        $publicKey = $this->decodePublicKey($publicKeyRaw);
-        if ($publicKey === null || strlen($publicKey) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
-            return false;
-        }
-
-        try {
-            return sodium_crypto_sign_verify_detached($signature, $message, $publicKey);
-        } catch (\Throwable) {
-            return false;
-        }
-    }
-
-    private function decodePublicKey(string $raw): ?string
-    {
-        $trimmed = trim($raw);
-        if ($trimmed === '') {
+        $raw = base64_decode($signingKey, true);
+        if ($raw === false) {
             return null;
         }
-        // strip common prefixes
-        if (str_starts_with($trimmed, 'ed25519:')) {
-            $trimmed = substr($trimmed, 8);
-        }
-        $b64 = base64_decode($trimmed, true);
-        if ($b64 !== false && strlen($b64) === SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
-            return $b64;
-        }
-        if (ctype_xdigit($trimmed) && strlen($trimmed) === SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES * 2) {
-            $hex = hex2bin($trimmed);
+        if (strlen($raw) === 32) {
+            $keypair = sodium_crypto_sign_seed_keypair($raw);
 
-            return $hex === false ? null : $hex;
+            return sodium_crypto_sign_publickey($keypair);
+        }
+        if (strlen($raw) === 64) {
+            return sodium_crypto_sign_publickey_from_secretkey($raw);
         }
 
         return null;

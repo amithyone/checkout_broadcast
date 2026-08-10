@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0] - 2026-08-10
+
+### Added
+- Python `wire_format` encode/expand (`encode_wire_envelope`, `wire_to_verify_envelope`, presence omit `amt`)
+- Python `amount` helpers (`to_packet_amount` / `from_packet_amount` — Ed25519 kobo)
+- Python `api_url` helpers (`normalize_bank_api_url`, `sync_signing_key_url`)
+- Docs: CheckoutPay `POST …/terminals/sync-signing-key`, single POS config path, Laravel open-until-paid notes
+
+### Changed
+- `deploy/laravel/BroadcastVerifyController.php` aligned with Cheko production (wire expand, open-until-paid, presence window, merchant active)
+- Routes snippet documents `sync-signing-key`
+
 ## [1.2.0] - 2026-08-10
 
 ### Added

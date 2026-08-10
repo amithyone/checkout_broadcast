@@ -10,7 +10,10 @@ This matches what **CheckoutNow** ships in production (compact BLE wire → expa
 |------------------|-------|
 | Wallet app base | `EXPO_PUBLIC_CHECKOUT_BROADCAST_API=https://check-outpay.com/api/v1/broadcast` |
 | Verify endpoint | `POST …/verify-broadcast` |
+| Sync signing key (POS) | `POST …/terminals/sync-signing-key` |
 | Health | `GET …/health` |
+
+**Base URL must end at `/api/v1/broadcast`** (not the site root). Python helper: `normalize_bank_api_url()`.
 
 Full contract: [spec/verify-api.md](../spec/verify-api.md) · BLE wire: [spec/ble-transport.md](../spec/ble-transport.md)
 
@@ -33,6 +36,34 @@ CheckoutPay stores only the **public key** for verification.
 2. Broadcast compact GATT JSON `{ p, alg, sig }` (see [ble-transport.md](../spec/ble-transport.md)).
 3. Put checkout amount in **kobo** (`amt`: ₦25.00 → `2500`).
 4. Idle till / “Pay at shop” without a cart: omit `amt` or `amt: 0`, optional `"k":"presence"`; refresh `ts` and re-sign periodically.
+5. Keep **one** signing key on disk for POS + BLE sidecar (Cheko: `%APPDATA%\Cheko POS\cheko-config.json`). After dashboard rotate, call sync-signing-key / Settings “Test connection”.
+
+### Compact wire helpers (Python)
+
+```python
+from checkout_broadcast import (
+    encode_wire_envelope,
+    to_packet_amount,
+    wire_to_verify_envelope,
+)
+
+kobo = to_packet_amount(25.00, "ed25519")  # 2500
+wire = encode_wire_envelope({"payload": payload, "signature_alg": "ed25519", "signature": sig})
+# GATT advertise `wire`; wallet expands:
+envelope = wire_to_verify_envelope(wire)
+```
+
+### Sync signing key (POS Settings)
+
+```http
+POST /api/v1/broadcast/terminals/sync-signing-key
+Content-Type: application/json
+X-Terminal-Api-Key: bk_…
+
+{ "terminal_id": "CP-1RK8Z", "signing_key": "<base64 ed25519 seed>" }
+```
+
+Used by Cheko “Test connection” to update the terminal’s signing seed in CheckoutPay so live verify matches this POS (open-until-paid verify still applies).
 
 Python SDK (full envelope for local/dev; for Cheko production prefer compact wire under 512 bytes):
 
@@ -98,6 +129,17 @@ CheckoutPay’s Laravel verify controller **also** expands compact `{p,alg,sig}`
 | Presence opens ₦0 transfer | Idle beacon — prompt for amount when `session_kind=presence` or amount 0 |
 | `timestamp_ms` missing | Dropped `ts` during expand |
 | `Bank name mismatch` | POS bank / msk ≠ dashboard settlement account |
+| `Invalid signature` after Settings save | Electron + BLE sidecar used **different** config files / keys — unify path and re-sync |
+| Verify OK, phone still fails | Stale BLE session — start a **new** checkout after key sync |
+
+## Laravel deploy (CheckoutPay)
+
+Reference controller: [`deploy/laravel/BroadcastVerifyController.php`](../deploy/laravel/BroadcastVerifyController.php) (Cheko-proven):
+
+- Expands compact `{p,alg,sig}` on the server
+- **Open until paid** (presence / unpaid checkout sessions not burned on first verify)
+- Merchant active check + presence time window
+- Routes snippet: [`deploy/laravel/routes-snippet.php`](../deploy/laravel/routes-snippet.php)
 
 ## Open SDK vs CheckoutPay production
 
