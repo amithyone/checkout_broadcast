@@ -218,7 +218,7 @@ The SDK builds and signs this automatically. You only pass `amountNgn` and `item
 ```json
 {
   "payload": {
-    "protocol_version": 2.0,
+    "protocol_version": 2,
     "timestamp_ms": 1720000000000,
     "session_uuid_v4": "550e8400-e29b-41d4-a716-446655440000",
     "terminal_id": "POS-LAG-001",
@@ -228,7 +228,7 @@ The SDK builds and signs this automatically. You only pass `amountNgn` and `item
       "item_count": 3
     },
     "account_info_public_display": {
-      "bank_name_hash": "sha256:1ab138fd...",
+      "bank_name": "Moniepoint Microfinance Bank",
       "masked_account_suffix": "***9876"
     }
   },

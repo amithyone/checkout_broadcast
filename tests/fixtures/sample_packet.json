@@ -1,6 +1,6 @@
 {
   "payload": {
-    "protocol_version": 2.0,
+    "protocol_version": 2,
     "timestamp_ms": 1720000000000,
     "session_uuid_v4": "550e8400-e29b-41d4-a716-446655440000",
     "terminal_id": "POS-LAG-001",
@@ -10,11 +10,11 @@
       "item_count": 3
     },
     "account_info_public_display": {
-      "bank_name_hash": "sha256:1ab138fd89d4c060074875dcad06de1701ccaa6f94a67dfd9ca65e8496202f7a",
+      "bank_name": "GTBank",
       "masked_account_suffix": "***9876"
     }
   },
   "signature_alg": "HMAC-SHA256",
   "signing_key": "dev-signing-key-change-in-production",
-  "expected_signature": "uJrzmfISPTiGKA6T/g5xnQoWAOZxQCwRFElAV3/76QM="
+  "expected_signature": "8yDdv7ADdKjd3OECy6M6cm9J0gbEk0VqkQpH7E2Wc7U="
 }

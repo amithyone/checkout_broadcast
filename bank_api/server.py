@@ -11,7 +11,7 @@ import sys
 import base64
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Optional, Optional
+from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,9 +21,15 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "sdk" / "python"))
 
-from checkout_broadcast.protocol import SignedPacket, is_timestamp_valid, parse_timestamp_ms
+from checkout_broadcast.protocol import (
+    SignedPacket,
+    is_timestamp_valid,
+    parse_timestamp_ms,
+    payload_for_signing,
+)
 from checkout_broadcast.signing import (
     _ed25519_signing_key,
+    bank_display_matches,
     generate_ed25519_keypair,
     hash_bank_name,
     normalize_signature_alg,
@@ -185,7 +191,7 @@ def verify_broadcast(request: Request, packet: SignedPacket) -> dict[str, Any]:
             headers={"Retry-After": str(retry)},
         )
 
-    payload = packet.payload if isinstance(packet.payload, dict) else packet.payload.model_dump()
+    payload = payload_for_signing(packet.payload)
     terminal_id = payload["terminal_id"]
     terminal = db.get_terminal(terminal_id)
     if not terminal:
@@ -201,8 +207,9 @@ def verify_broadcast(request: Request, packet: SignedPacket) -> dict[str, Any]:
     if not db.consume_session(session, terminal_id):
         return VerifyFailure(error="Session UUID already used (replay)").model_dump()
 
-    if payload["account_info_public_display"]["bank_name_hash"] != terminal["bank_name_hash"]:
-        return VerifyFailure(error="Bank name hash mismatch").model_dump()
+    display = payload["account_info_public_display"]
+    if not bank_display_matches(terminal["bank_name"], display, terminal["bank_name_hash"]):
+        return VerifyFailure(error="Bank name mismatch").model_dump()
 
     signature_alg = packet.signature_alg or terminal.get("signature_alg") or "HMAC-SHA256"
     if not verify_packet(

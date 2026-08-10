@@ -64,13 +64,13 @@ def test_register_and_verify(client):
     assert reg.status_code == 200
 
     payload = {
-        "protocol_version": 2.0,
+        "protocol_version": 2,
         "timestamp_ms": int(time.time() * 1000),
         "session_uuid_v4": "11111111-1111-4111-8111-111111111111",
         "terminal_id": "POS-001",
         "transaction_details": {"currency_code": "NGN", "total_amount_ngn": 1500, "item_count": 2},
         "account_info_public_display": {
-            "bank_name_hash": hash_bank_name("kuda"),
+            "bank_name": "kuda",
             "masked_account_suffix": "***9876",
         },
     }
@@ -91,13 +91,13 @@ def test_register_and_verify(client):
 
 def test_unknown_terminal_rejected(client):
     payload = {
-        "protocol_version": 2.0,
+        "protocol_version": 2,
         "timestamp_ms": int(time.time() * 1000),
         "session_uuid_v4": "22222222-2222-4222-8222-222222222222",
         "terminal_id": "UNKNOWN",
         "transaction_details": {"currency_code": "NGN", "total_amount_ngn": 100, "item_count": 1},
         "account_info_public_display": {
-            "bank_name_hash": hash_bank_name("kuda"),
+            "bank_name": "kuda",
             "masked_account_suffix": "***9876",
         },
     }
@@ -122,13 +122,13 @@ def test_invalid_signature_rejected(client):
         },
     )
     payload = {
-        "protocol_version": 2.0,
+        "protocol_version": 2,
         "timestamp_ms": int(time.time() * 1000),
         "session_uuid_v4": "33333333-3333-4333-8333-333333333333",
         "terminal_id": "POS-002",
         "transaction_details": {"currency_code": "NGN", "total_amount_ngn": 500, "item_count": 1},
         "account_info_public_display": {
-            "bank_name_hash": hash_bank_name("kuda"),
+            "bank_name": "kuda",
             "masked_account_suffix": "***9876",
         },
     }
@@ -168,6 +168,37 @@ def test_missing_timestamp_ms_rejected(client):
         "signature": sign_payload(payload, SIGNING_KEY),
     }
     assert client.post("/verify-broadcast", json=packet).json()["error"] == "Missing timestamp_ms in payload"
+
+
+def test_legacy_bank_name_hash_still_verifies(client):
+    client.post(
+        "/terminals/register",
+        headers={"X-Admin-Key": ADMIN_KEY},
+        json={
+            "terminal_id": "POS-LEGACY",
+            "signing_key": SIGNING_KEY,
+            "merchant_name": "Legacy Shop",
+            "bank_name": "Moniepoint Microfinance Bank",
+            "masked_account_suffix": "***1234",
+        },
+    )
+    payload = {
+        "protocol_version": 2,
+        "timestamp_ms": int(time.time() * 1000),
+        "session_uuid_v4": "44444444-4444-4444-8444-444444444444",
+        "terminal_id": "POS-LEGACY",
+        "transaction_details": {"currency_code": "NGN", "total_amount_ngn": 900, "item_count": 1},
+        "account_info_public_display": {
+            "bank_name_hash": hash_bank_name("Moniepoint Microfinance Bank"),
+            "masked_account_suffix": "***1234",
+        },
+    }
+    packet = {
+        "payload": payload,
+        "signature_alg": "HMAC-SHA256",
+        "signature": sign_payload(payload, SIGNING_KEY),
+    }
+    assert client.post("/verify-broadcast", json=packet).json()["valid"] is True
 
 
 def test_ed25519_register_and_verify(client):

@@ -1,4 +1,4 @@
-# Checkout Broadcast — Signing Rules (v2.0)
+# Checkout Broadcast — Signing Rules (v2.0 / v2.1)
 
 All SDKs MUST produce identical signatures for the same payload and key.
 
@@ -63,13 +63,28 @@ Every signed payload **must** include:
 
 ## Validation Window
 
-- Reject if `abs(now_ms - payload.timestamp_ms) > 600_000` (10 minutes).
-- Reject if `session_uuid_v4` was already consumed for that `terminal_id`.
+- Reject if `session_uuid_v4` was already consumed for that `terminal_id` (unless backend uses open-session model).
+- Optional timestamp window on backend — prefer session status `open` / `paid` / `cancelled`.
 
-## Bank Name Hash
+## Bank name in BLE packet (v2.1 — recommended)
+
+POS puts the **plain settlement bank name** in the broadcast (same string registered with the bank API):
+
+```json
+"account_info_public_display": {
+  "bank_name": "Moniepoint Microfinance Bank",
+  "masked_account_suffix": "***9876"
+}
+```
+
+Verify compares **normalized** names: trim whitespace, lowercase ASCII.
+
+### Legacy: bank_name_hash (deprecated)
+
+Older POS builds sent `bank_name_hash` instead of `bank_name`. Verify endpoints accept **either**:
 
 ```
 bank_name_hash = "sha256:" + hex(SHA256(normalized_bank_name_utf8))
 ```
 
-Normalize: trim whitespace, lowercase.
+New POS integrations should send **`bank_name` only** — no hashing on the terminal.

@@ -11,7 +11,7 @@ export function buildPayload(params: {
   sessionUuidV4?: string;
 }): Payload {
   return {
-    protocol_version: 2.0,
+    protocol_version: 2,
     timestamp_ms: Date.now(),
     session_uuid_v4: params.sessionUuidV4 ?? randomUUID(),
     terminal_id: params.terminalId,
@@ -21,7 +21,7 @@ export function buildPayload(params: {
       item_count: params.itemCount,
     },
     account_info_public_display: {
-      bank_name_hash: hashBankName(params.bankName),
+      bank_name: params.bankName.trim(),
       masked_account_suffix: params.maskedAccountSuffix,
     },
   };

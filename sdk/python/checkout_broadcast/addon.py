@@ -18,6 +18,8 @@ from checkout_broadcast.protocol import (
     build_payload,
     is_timestamp_valid,
     parse_timestamp_ms,
+    payload_for_signing,
+    signed_packet_for_api,
 )
 from checkout_broadcast.signing import normalize_signature_alg, sign_packet, verify_signature
 from checkout_broadcast.transport.simulated import create_transport
@@ -192,7 +194,7 @@ class CheckoutBroadcastAddon:
                 raise
 
     def _verify_locally_and_with_bank(self, packet: SignedPacket) -> VerifiedPayment:
-        payload = packet.payload if isinstance(packet.payload, dict) else packet.payload.model_dump()
+        payload = payload_for_signing(packet.payload)
         timestamp_ms = parse_timestamp_ms(payload)
         if timestamp_ms is None:
             raise VerificationError("Missing timestamp_ms in payload")
@@ -204,11 +206,7 @@ class CheckoutBroadcastAddon:
         try:
             response = httpx.post(
                 f"{self.config.bank_api_url.rstrip('/')}/verify-broadcast",
-                json={
-                    "payload": payload,
-                    "signature_alg": packet.signature_alg,
-                    "signature": packet.signature,
-                },
+                json=signed_packet_for_api(packet),
                 timeout=10.0,
             )
         except httpx.HTTPError as exc:
@@ -239,5 +237,4 @@ class CheckoutBroadcastAddon:
 
     def verify_with_known_key(self, packet: SignedPacket, signing_key: str) -> bool:
         """Local signature check used in conformance tests."""
-        payload = packet.payload if isinstance(packet.payload, dict) else packet.payload.model_dump()
-        return verify_signature(payload, signing_key, packet.signature)
+        return verify_signature(payload_for_signing(packet.payload), signing_key, packet.signature)

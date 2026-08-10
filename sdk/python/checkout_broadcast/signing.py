@@ -16,14 +16,39 @@ except ImportError:  # pragma: no cover - optional until PyNaCl installed
     VerifyKey = None  # type: ignore[misc, assignment]
 
 
+def normalize_bank_name(bank_name: str) -> str:
+    return bank_name.strip().lower()
+
+
 def hash_bank_name(bank_name: str) -> str:
-    normalized = bank_name.strip().lower()
-    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(normalize_bank_name(bank_name).encode("utf-8")).hexdigest()
     return f"sha256:{digest}"
 
 
+def bank_display_matches(terminal_bank_name: str, display: dict, terminal_bank_hash: str) -> bool:
+    """Accept plain bank_name (v2.1+) or legacy bank_name_hash."""
+    packet_name = display.get("bank_name")
+    if isinstance(packet_name, str) and packet_name.strip():
+        return normalize_bank_name(packet_name) == normalize_bank_name(terminal_bank_name)
+    packet_hash = display.get("bank_name_hash")
+    if isinstance(packet_hash, str) and packet_hash.strip():
+        return packet_hash == terminal_bank_hash
+    return False
+
+
 def canonical_json(data: dict[str, Any]) -> bytes:
-    return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    normalized = _normalize_for_signing(data)
+    return json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _normalize_for_signing(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _normalize_for_signing(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_normalize_for_signing(v) for v in value]
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
 
 
 def sign_payload(payload: dict[str, Any], signing_key: str) -> str:

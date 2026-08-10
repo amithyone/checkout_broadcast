@@ -15,10 +15,11 @@
     },
     "AccountInfoPublicDisplay": {
       "type": "object",
-      "required": ["bank_name_hash", "masked_account_suffix"],
+      "required": ["bank_name", "masked_account_suffix"],
       "properties": {
-        "bank_name_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-        "masked_account_suffix": { "type": "string", "pattern": "^\\*{3}[0-9]{4}$" }
+        "bank_name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "masked_account_suffix": { "type": "string", "pattern": "^\\*{3}[0-9]{4}$" },
+        "bank_name_hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
       },
       "additionalProperties": false
     },
@@ -33,7 +34,7 @@
         "account_info_public_display"
       ],
       "properties": {
-        "protocol_version": { "type": "number", "const": 2.0 },
+        "protocol_version": { "type": "integer", "const": 2 },
         "timestamp_ms": { "type": "integer", "minimum": 0 },
         "session_uuid_v4": { "type": "string", "format": "uuid" },
         "terminal_id": { "type": "string", "minLength": 1 },

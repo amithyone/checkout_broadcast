@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "sdk" / "python"))
 from checkout_broadcast.addon import CheckoutBroadcastAddon, CheckoutBroadcastConfig
 from checkout_broadcast.errors import RoleNotAllowedError, VerificationError
 from checkout_broadcast.protocol import CheckoutData
-from checkout_broadcast.signing import hash_bank_name, sign_payload, verify_signature
+from checkout_broadcast.signing import sign_payload, verify_signature
 
 ADMIN_KEY = "test-admin-key-for-ci-only"
 SIGNING_KEY = "test-signing-key-min-16-chars"
@@ -55,7 +55,7 @@ def bank_client(monkeypatch):
 
 def test_sign_and_verify_roundtrip():
     payload = {
-        "protocol_version": 2.0,
+        "protocol_version": 2,
         "timestamp_ms": 1720000000000,
         "session_uuid_v4": "550e8400-e29b-41d4-a716-446655440000",
         "terminal_id": "POS-LAG-001",
@@ -65,7 +65,7 @@ def test_sign_and_verify_roundtrip():
             "item_count": 3,
         },
         "account_info_public_display": {
-            "bank_name_hash": hash_bank_name("kuda"),
+            "bank_name": "kuda",
             "masked_account_suffix": "***9876",
         },
     }
@@ -143,9 +143,9 @@ def test_bank_verify_and_replay(bank_client):
 def test_fixture_signature_matches_signing_key():
     fixture_path = ROOT / "tests" / "fixtures" / "sample_packet.json"
     data = json.loads(fixture_path.read_text())
-    data["payload"]["account_info_public_display"]["bank_name_hash"] = hash_bank_name("kuda")
-    sig = sign_payload(data["payload"], SIGNING_KEY)
-    assert verify_signature(data["payload"], SIGNING_KEY, sig)
+    sig = sign_payload(data["payload"], data["signing_key"])
+    assert sig == data["expected_signature"]
+    assert verify_signature(data["payload"], data["signing_key"], sig)
 
 
 @pytest.mark.parametrize(
@@ -166,7 +166,7 @@ def test_golden_adopter_vectors(fixture_name):
     assert verify_signature(payload, key, signature)
     bank = data.get("bank_name")
     if bank:
-        assert payload["account_info_public_display"]["bank_name_hash"] == hash_bank_name(bank)
+        assert payload["account_info_public_display"]["bank_name"].strip().lower() == bank.strip().lower()
 
 
 def test_golden_vectors_verify_against_bank_api(bank_client):

@@ -57,7 +57,7 @@ export async function signPayload(payload, signingKey) {
 
 function buildPayload({ terminalId, amountNgn, itemCount, bankName, maskedAccountSuffix }) {
   return {
-    protocol_version: 2.0,
+    protocol_version: 2,
     timestamp_ms: Date.now(),
     session_uuid_v4: crypto.randomUUID(),
     terminal_id: terminalId,
@@ -67,7 +67,7 @@ function buildPayload({ terminalId, amountNgn, itemCount, bankName, maskedAccoun
       item_count: itemCount,
     },
     account_info_public_display: {
-      bank_name_hash: hashBankName(bankName),
+      bank_name: bankName.trim(),
       masked_account_suffix: maskedAccountSuffix,
     },
   };
@@ -148,9 +148,6 @@ export class CheckoutBroadcastAddon {
       bankName: this.config.bankName ?? "kuda",
       maskedAccountSuffix: this.config.maskedAccountSuffix ?? "***9876",
     });
-    payload.account_info_public_display.bank_name_hash = await hashBankName(
-      this.config.bankName ?? "kuda",
-    );
     const packet = {
       payload,
       signature_alg: "HMAC-SHA256",

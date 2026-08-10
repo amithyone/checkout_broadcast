@@ -16,7 +16,7 @@ def test_python_and_node_signing_match():
     """Cross-SDK parity: Python and Node must produce identical signatures."""
     data = json.loads(FIXTURE.read_text())
     payload = data["payload"]
-    payload["account_info_public_display"]["bank_name_hash"] = "sha256:1ab138fd89d4c060074875dcad06de1701ccaa6f94a67dfd9ca65e8496202f7a"
+    assert "bank_name" in payload["account_info_public_display"]
 
     sys.path.insert(0, str(ROOT / "sdk" / "python"))
     from checkout_broadcast.signing import sign_payload
@@ -24,18 +24,18 @@ def test_python_and_node_signing_match():
     py_sig = sign_payload(payload, SIGNING_KEY)
 
     node_script = """
-    const crypto = require('crypto');
-    function sortKeys(v) {
-      if (Array.isArray(v)) return v.map(sortKeys);
+    function normalize(v) {
+      if (Array.isArray(v)) return v.map(normalize);
       if (v && typeof v === 'object') {
-        return Object.keys(v).sort().reduce((a,k)=>{a[k]=sortKeys(v[k]);return a;},{});
+        return Object.keys(v).sort().reduce((a,k)=>{a[k]=normalize(v[k]);return a;},{});
       }
+      if (typeof v === 'number' && Number.isInteger(v)) return v;
       return v;
     }
     const payload = JSON.parse(process.argv[1]);
     const key = process.argv[2];
-    const msg = Buffer.from(JSON.stringify(sortKeys(payload)), 'utf8');
-    process.stdout.write(crypto.createHmac('sha256', key).update(msg).digest('base64'));
+    const msg = Buffer.from(JSON.stringify(normalize(payload)), 'utf8');
+    process.stdout.write(require('crypto').createHmac('sha256', key).update(msg).digest('base64'));
     """
     result = subprocess.run(
         ["node", "-e", node_script, json.dumps(payload), SIGNING_KEY],

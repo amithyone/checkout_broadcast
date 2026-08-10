@@ -7,24 +7,28 @@ export function hashBankName(bankName: string): string {
   return `sha256:${digest}`;
 }
 
-export function canonicalJson(data: Record<string, unknown>): Buffer {
-  return Buffer.from(JSON.stringify(sortKeys(data)), "utf8");
-}
-
-function sortKeys(value: unknown): unknown {
+function normalizeForSigning(value: unknown): unknown {
   if (Array.isArray(value)) {
-    return value.map(sortKeys);
+    return value.map(normalizeForSigning);
   }
   if (value !== null && typeof value === "object") {
     const obj = value as Record<string, unknown>;
     return Object.keys(obj)
       .sort()
       .reduce<Record<string, unknown>>((acc, key) => {
-        acc[key] = sortKeys(obj[key]);
+        acc[key] = normalizeForSigning(obj[key]);
         return acc;
       }, {});
   }
+  if (typeof value === "number" && Number.isInteger(value)) {
+    return value;
+  }
   return value;
+}
+
+export function canonicalJson(data: Record<string, unknown>): Buffer {
+  const normalized = normalizeForSigning(data) as Record<string, unknown>;
+  return Buffer.from(JSON.stringify(normalized), "utf8");
 }
 
 export function signPayload(payload: Payload, signingKey: string): string {

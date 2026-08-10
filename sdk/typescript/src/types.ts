@@ -8,12 +8,14 @@ export interface TransactionDetails {
 }
 
 export interface AccountInfoPublicDisplay {
-  bank_name_hash: string;
+  bank_name?: string;
   masked_account_suffix: string;
+  /** @deprecated Legacy POS builds — verify accepts hash or plain bank_name */
+  bank_name_hash?: string;
 }
 
 export interface Payload {
-  protocol_version: 2.0;
+  protocol_version: 2;
   timestamp_ms: number;
   session_uuid_v4: string;
   terminal_id: string;

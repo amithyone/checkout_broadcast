@@ -1,11 +1,9 @@
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
-
-from checkout_broadcast.signing import hash_bank_name
+from pydantic import BaseModel, Field, model_validator
 
 BroadcastRole = Literal["send", "receive", "both"]
 TransportKind = Literal["ble", "simulated"]
@@ -21,12 +19,21 @@ class TransactionDetails(BaseModel):
 
 
 class AccountInfoPublicDisplay(BaseModel):
-    bank_name_hash: str
     masked_account_suffix: str
+    bank_name: Optional[str] = None
+    bank_name_hash: Optional[str] = None
+
+    @model_validator(mode="after")
+    def require_bank_identity(self) -> "AccountInfoPublicDisplay":
+        has_name = bool(self.bank_name and self.bank_name.strip())
+        has_hash = bool(self.bank_name_hash and self.bank_name_hash.strip())
+        if not has_name and not has_hash:
+            raise ValueError("account_info_public_display requires bank_name or bank_name_hash")
+        return self
 
 
 class Payload(BaseModel):
-    protocol_version: float = 2.0
+    protocol_version: Literal[2] = 2
     timestamp_ms: int = Field(ge=0)
     session_uuid_v4: str
     terminal_id: str
@@ -73,10 +80,24 @@ def build_payload(
             item_count=item_count,
         ),
         account_info_public_display=AccountInfoPublicDisplay(
-            bank_name_hash=hash_bank_name(bank_name),
+            bank_name=bank_name.strip(),
             masked_account_suffix=masked_account_suffix,
         ),
-    ).model_dump()
+    ).model_dump(exclude_none=True)
+
+
+def payload_for_signing(payload: Payload | dict) -> dict[str, Any]:
+    if isinstance(payload, dict):
+        return payload
+    return payload.model_dump(exclude_none=True)
+
+
+def signed_packet_for_api(packet: SignedPacket) -> dict[str, Any]:
+    return {
+        "payload": payload_for_signing(packet.payload),
+        "signature_alg": packet.signature_alg,
+        "signature": packet.signature,
+    }
 
 
 def is_timestamp_valid(timestamp_ms: int, now_ms: Optional[int] = None) -> bool:
