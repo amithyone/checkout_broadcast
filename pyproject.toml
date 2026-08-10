@@ -34,9 +34,9 @@ dev = ["pytest>=7.4", "jsonschema>=4.0", "checkout-broadcast[bank]"]
 checkout-broadcast = "checkout_broadcast.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/checkout-broadcast/checkout-broadcast"
-Documentation = "https://github.com/checkout-broadcast/checkout-broadcast/tree/main/docs"
-Repository = "https://github.com/checkout-broadcast/checkout-broadcast"
+Homepage = "https://github.com/amithyone/checkout_broadcast"
+Documentation = "https://github.com/amithyone/checkout_broadcast/tree/main/docs"
+Repository = "https://github.com/amithyone/checkout_broadcast"
 
 [tool.setuptools.packages.find]
 where = ["sdk/python"]

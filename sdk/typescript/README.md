@@ -21,4 +21,4 @@ const addon = new CheckoutBroadcastAddon({
 await addon.start();
 ```
 
-See [integration docs](https://github.com/checkout-broadcast/checkout-broadcast/tree/main/docs/banking-app-integration.md).
+See [integration docs](https://github.com/amithyone/checkout_broadcast/tree/main/docs/banking-app-integration.md).

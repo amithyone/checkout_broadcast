@@ -17,7 +17,7 @@ Developers expect one-line installs. This guide covers **PyPI**, **npm**, **Mave
 
 ## Prerequisites (all platforms)
 
-1. **Public GitHub repo** — e.g. `github.com/your-org/checkout-broadcast`
+1. **Public GitHub repo** — `github.com/amithyone/checkout_broadcast`
 2. **Update URLs** in `pyproject.toml`, `package.json`, and Gradle files to match your repo
 3. **Choose a version** — keep in sync: `1.0.0` across Python, npm, Android
 4. **Tag releases** — `git tag v1.0.0 && git push origin v1.0.0`
@@ -182,7 +182,7 @@ iOS uses **SPM from Git**, not Maven.
 2. Users add in Xcode → **File → Add Package Dependencies**:
 
 ```
-https://github.com/your-org/checkout-broadcast
+https://github.com/amithyone/checkout_broadcast
 ```
 
 Package path: `sdk/ios/CheckoutBroadcast`
@@ -190,7 +190,7 @@ Package path: `sdk/ios/CheckoutBroadcast`
 Or in `Package.swift`:
 
 ```swift
-.package(url: "https://github.com/your-org/checkout-broadcast.git", from: "1.0.0")
+.package(url: "https://github.com/amithyone/checkout_broadcast.git", from: "1.0.0")
 ```
 
 ---

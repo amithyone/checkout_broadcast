@@ -31,13 +31,13 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/checkout-broadcast/checkout-broadcast.git",
+    "url": "https://github.com/amithyone/checkout_broadcast.git",
     "directory": "sdk/typescript"
   },
   "bugs": {
-    "url": "https://github.com/checkout-broadcast/checkout-broadcast/issues"
+    "url": "https://github.com/amithyone/checkout_broadcast/issues"
   },
-  "homepage": "https://github.com/checkout-broadcast/checkout-broadcast#readme",
+  "homepage": "https://github.com/amithyone/checkout_broadcast#readme",
   "publishConfig": {
     "access": "public"
   },

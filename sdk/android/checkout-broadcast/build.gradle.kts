@@ -44,7 +44,7 @@ publishing {
             pom {
                 name.set("Checkout Broadcast Android SDK")
                 description.set("Receive signed POS checkout broadcasts in Android banking apps")
-                url.set("https://github.com/checkout-broadcast/checkout-broadcast")
+                url.set("https://github.com/amithyone/checkout_broadcast")
                 licenses {
                     license {
                         name.set("MIT License")
@@ -52,9 +52,9 @@ publishing {
                     }
                 }
                 scm {
-                    connection.set("scm:git:git://github.com/checkout-broadcast/checkout-broadcast.git")
-                    developerConnection.set("scm:git:ssh://github.com/checkout-broadcast/checkout-broadcast.git")
-                    url.set("https://github.com/checkout-broadcast/checkout-broadcast")
+                    connection.set("scm:git:git://github.com/amithyone/checkout_broadcast.git")
+                    developerConnection.set("scm:git:ssh://github.com/amithyone/checkout_broadcast.git")
+                    url.set("https://github.com/amithyone/checkout_broadcast")
                 }
             }
         }

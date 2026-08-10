@@ -4,7 +4,7 @@ Open-source SDK for **frictionless POS-to-banking-app payments** in Nigeria.
 
 After checkout, a shop terminal broadcasts a **signed payment request** over Bluetooth. The customer's banking app receives it, verifies it with the bank server, and **pre-fills the transfer screen** — no manual account typing.
 
-[![CI](https://github.com/checkout-broadcast/checkout-broadcast/actions/workflows/ci.yml/badge.svg)](https://github.com/checkout-broadcast/checkout-broadcast/actions/workflows/ci.yml)
+[![CI](https://github.com/amithyone/checkout_broadcast/actions/workflows/ci.yml/badge.svg)](https://github.com/amithyone/checkout_broadcast/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ## Features
@@ -18,8 +18,8 @@ After checkout, a shop terminal broadcasts a **signed payment request** over Blu
 ## Quick start
 
 ```bash
-git clone https://github.com/checkout-broadcast/checkout-broadcast.git
-cd checkout-broadcast
+git clone https://github.com/amithyone/checkout_broadcast.git
+cd checkout_broadcast
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
