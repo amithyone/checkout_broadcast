@@ -181,5 +181,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Questions and integration help: [Discuss
 [Creative Commons Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/) (CC BY-NC 4.0) — see [LICENSE](LICENSE).
 
 Free for non-commercial use with attribution. Commercial use, such as a bank, wallet or POS maker shipping it to customers, needs a separate commercial license: ask in [Discussions](https://github.com/amithyone/checkout_broadcast/discussions) or contact the maintainer.
-
-Releases up to and including v1.5.0 were published under MIT and stay available under MIT.

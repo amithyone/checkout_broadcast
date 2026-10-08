@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Changed
-- **License changed from MIT to Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0).** Free for non-commercial use with attribution; commercial use needs a separate license from the maintainer. Releases up to and including v1.5.0 remain available under MIT.
+- **License changed from MIT to Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0).** Free for non-commercial use with attribution; commercial use needs a separate license from the maintainer. Earlier MIT-tagged releases are withdrawn.
 
 ## [1.5.0] - 2026-10-08
 
