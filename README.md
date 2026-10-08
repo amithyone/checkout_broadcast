@@ -10,7 +10,7 @@ After checkout, a shop terminal broadcasts a **signed payment request** over Blu
 [![Discussions](https://img.shields.io/github/discussions/amithyone/checkout_broadcast)](https://github.com/amithyone/checkout_broadcast/discussions)
 [![Successful checkouts](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fcheckout-broadcast-stats.vercel.app%2Fusage%2Fpublic&query=%24.ok_count&label=successful%20checkouts&color=20ccb4)](https://amithyone.github.io/checkout_broadcast/)
 
-**Website:** [amithyone.github.io/checkout_broadcast](https://amithyone.github.io/checkout_broadcast/). Anonymous checkout totals (no amounts) are on Vercel: [spec/public-usage-count.md](spec/public-usage-count.md), [usage-site/](usage-site/README.md).
+**Website:** [amithyone.github.io/checkout_broadcast](https://amithyone.github.io/checkout_broadcast/). Anonymous checkout totals (no amounts) are on Vercel, counted only from enrolled verify servers: [spec/public-usage-count.md](spec/public-usage-count.md), [usage-site/](usage-site/README.md).
 
 <!-- Demo: add a 30–60s screen recording as docs/assets/demo.gif (till broadcasts → phone pre-fills transfer) and embed it here. -->
 

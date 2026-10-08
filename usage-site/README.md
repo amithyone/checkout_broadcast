@@ -2,29 +2,53 @@
 
 Anonymous `ok` counter for [amithyone.github.io/checkout_broadcast](https://amithyone.github.io/checkout_broadcast/). No amounts, accounts, or terminals.
 
+Anonymous POST is **rejected**. Only an enrolled **verify server** (bank, PSB, MMO, or CheckoutPay) with a secret token can increment. Listing every CBN bank on this hostname would not stop spam — anyone can still POST. Ownership of the verify hostname is proven over HTTPS instead.
+
 ## Deploy
 
-1. Create a Vercel project with **Root Directory** `usage-site`.
-2. Add an Upstash Redis / Vercel KV store and these env vars:
-   - `KV_REST_API_URL` and `KV_REST_API_TOKEN`, **or**
-   - `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
-3. Suggested production URL: `https://checkout-broadcast-stats.vercel.app`
-4. Import the GitHub repo `amithyone/checkout_broadcast` so pushes to `main` redeploy.
+1. Vercel project, **Root Directory** `usage-site`.
+2. KV / Upstash Redis: `KV_REST_API_URL` + `KV_REST_API_TOKEN` (or Upstash Redis REST pair).
+3. `USAGE_ADMIN_SECRET` — min 16 chars, used only to enroll reporters.
+4. Production URL: `https://checkout-broadcast-stats.vercel.app`
 
-```bash
-cd usage-site
-npx vercel --prod
+## Enroll a bank verify host
+
+The bank publishes:
+
+`https://<verify-host>/.well-known/checkout-broadcast-usage.json`
+
+```json
+{ "host": "api.example-bank.com", "name": "Example Bank" }
 ```
 
-## Endpoints
+Then the maintainer:
 
-| Method | Path | Who |
-|--------|------|-----|
-| `GET` | `/usage/public` | Landing page, README badge |
-| `POST` | `/usage/hit` body `{}` | Verify **servers** after a successful checkout (not presence) |
+```http
+POST /usage/enroll
+Authorization: Bearer <USAGE_ADMIN_SECRET>
+Content-Type: application/json
 
-Phones and POS apps must not call this. Git never stores the count.
+{ "host": "api.example-bank.com", "name": "Example Bank" }
+```
 
-## Banks
+Vercel fetches that well-known file over HTTPS (must match `host`) and returns a **one-time** token. Put it on the bank server as `CHECKOUT_USAGE_STATS_TOKEN`. Never commit it.
 
-Set `CHECKOUT_USAGE_STATS_URL` on the verify host (Python `bank_api` and Laravel snippet forward automatically). Own-language verify: `POST` empty JSON once per successful checkout.
+Who may be enrolled: CBN-licensed deposit banks, PSBs, MMOs / wallets, and merchant verify hosts such as CheckoutPay — each with a live `/verify-broadcast`. Not every `.ng` website, and not phones or POS apps.
+
+## Hit
+
+```http
+POST /usage/hit
+Authorization: Bearer <CHECKOUT_USAGE_STATS_TOKEN>
+Content-Type: application/json
+
+{}
+```
+
+No token → 401, count unchanged. Rate-limited per token.
+
+## Public
+
+`GET /usage/public` → `{ ok, ok_count, reporters: [{ host, name }] }`
+
+Reporters are enrolled verify hosts only. Git never stores tokens or payments.

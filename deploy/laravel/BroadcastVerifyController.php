@@ -489,14 +489,15 @@ class BroadcastVerifyController extends Controller
     private function pingPublicUsage(): void
     {
         $url = rtrim((string) env('CHECKOUT_USAGE_STATS_URL', ''), '/');
-        if ($url === '') {
+        $token = (string) env('CHECKOUT_USAGE_STATS_TOKEN', '');
+        if ($url === '' || $token === '') {
             return;
         }
         try {
             $ctx = stream_context_create([
                 'http' => [
                     'method' => 'POST',
-                    'header' => "Content-Type: application/json\r\n",
+                    'header' => "Content-Type: application/json\r\nAuthorization: Bearer {$token}\r\n",
                     'content' => '{}',
                     'timeout' => 2,
                     'ignore_errors' => true,

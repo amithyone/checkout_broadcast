@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.2] - 2026-10-08
+
+### Changed
+- Public usage hits require an enrolled verify host: HTTPS well-known domain proof plus a secret bearer token. Anonymous POST no longer increments. The landing lists enrolled reporters, not the full CBN bank directory (a name list cannot authenticate HTTP callers).
+
 ## [1.4.1] - 2026-10-08
 
 ### Added

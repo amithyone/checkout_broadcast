@@ -16,6 +16,7 @@ class Settings:
     require_https_sdk: bool
     bind_public: bool
     usage_stats_url: str
+    usage_stats_token: str
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -34,6 +35,7 @@ class Settings:
             require_https_sdk=os.getenv("CHECKOUT_REQUIRE_HTTPS", "false").lower() == "true",
             bind_public=os.getenv("CHECKOUT_BIND_PUBLIC", "false").lower() == "true",
             usage_stats_url=os.getenv("CHECKOUT_USAGE_STATS_URL", "").rstrip("/"),
+            usage_stats_token=os.getenv("CHECKOUT_USAGE_STATS_TOKEN", "").strip(),
         )
 
     @property

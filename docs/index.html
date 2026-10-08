@@ -630,7 +630,8 @@
               </div>
               <div class="lbl">
                 <b>Successful checkouts</b>
-                Anonymous <code>ok</code> hits from verify servers. No amount, account, or shop data. Hosted on Vercel — not in git.
+                Counted only from enrolled bank / wallet verify servers (HTTPS domain proof + secret token). No amount, account, or shop data. Hosted on Vercel — not in git.
+                <span id="ok-reporters"></span>
               </div>
             </div>
           </div>
@@ -732,7 +733,7 @@
       ['How do we start a pilot?', 'Open a discussion on GitHub or email the maintainer. A typical pilot is one bank or wallet plus a handful of merchants on one POS model.'],
       ['Is this a Laravel protocol?', 'No. The protocol is compact BLE plus JSON verify. Use any language. The Laravel controller and Python bank_api are example servers.'],
       ['Can Android POS terminals broadcast?', 'Yes. Handheld Android POS uses the same compact wire as Cheko. The bank enrolls the device hardware (TEE key + Play Integrity); BLE still only carries the signed checkout, not the full account.'],
-      ['Where does the checkout count come from?', 'After a successful checkout verify (not presence), the bank server posts an empty ok to a Vercel endpoint. The landing page only reads the total. Phones never ping it, and git never stores the payments.'],
+      ['Where does the checkout count come from?', 'Only an enrolled verify server can increment it. The bank publishes a well-known file on its HTTPS hostname, the maintainer issues a secret token, and that server posts an empty ok after a successful checkout (not presence). A public list of Nigerian bank names would not stop spam — anyone can POST. Phones never ping it, and git never stores the payments.'],
     ];
 
     function el(html) { var t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
@@ -780,6 +781,10 @@
         .then(function (d) {
           if (d && typeof d.ok_count === 'number') {
             eln.textContent = d.ok_count.toLocaleString();
+          }
+          var rep = document.getElementById('ok-reporters');
+          if (rep && d && Array.isArray(d.reporters) && d.reporters.length) {
+            rep.textContent = ' Reporters: ' + d.reporters.map(function (r) { return r.name; }).join(', ') + '.';
           }
         })
         .catch(function () { eln.textContent = '0'; });

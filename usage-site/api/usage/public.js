@@ -1,7 +1,7 @@
-import { corsHeaders, getOkCount } from "../../lib/kv.js";
+import { corsPublic, getOkCount, jsonHeaders, listReporters } from "../../lib/kv.js";
 
 export default async function handler(req, res) {
-  const headers = corsHeaders();
+  const headers = { ...jsonHeaders(), ...corsPublic() };
   if (req.method === "OPTIONS") {
     res.writeHead(204, headers);
     return res.end();
@@ -12,11 +12,12 @@ export default async function handler(req, res) {
   }
   try {
     const ok_count = await getOkCount();
-    res.writeHead(200, { ...headers, "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ ok: true, ok_count }));
+    const reporters = await listReporters();
+    res.writeHead(200, headers);
+    return res.end(JSON.stringify({ ok: true, ok_count, reporters }));
   } catch (err) {
     const status = err.status || 500;
-    res.writeHead(status, { ...headers, "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ ok: false, error: err.message, ok_count: 0 }));
+    res.writeHead(status, headers);
+    return res.end(JSON.stringify({ ok: false, error: err.message, ok_count: 0, reporters: [] }));
   }
 }

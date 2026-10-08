@@ -54,7 +54,8 @@ def admin_auth(x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-
 def ping_public_usage() -> None:
     """Forward one anonymous ok to the OSS Vercel counter. Never fails verify."""
     url = settings.usage_stats_url
-    if not url:
+    token = settings.usage_stats_token
+    if not url or not token:
         return
     try:
         import urllib.request
@@ -62,7 +63,10 @@ def ping_public_usage() -> None:
         req = urllib.request.Request(
             f"{url}/usage/hit",
             data=b"{}",
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
             method="POST",
         )
         urllib.request.urlopen(req, timeout=2)
