@@ -2,7 +2,9 @@
 
 This guide is for **mobile banking and wallet app developers** — Kuda, OPay, PalmPay, GTBank, Access Bank, and similar apps used by customers to send money.
 
-Your app plays the **receiver** role: listen for nearby checkout broadcasts, verify them with **your bank's backend**, then pre-fill the transfer screen so the customer only confirms with PIN or biometrics.
+Your app plays the **receiver** role only: listen for nearby checkout broadcasts, verify them with **your bank's backend**, then pre-fill the transfer screen so the customer confirms **the shop name** and then PIN or biometrics.
+
+**Do not add checkout broadcast (send / GATT advertise) to a consumer banking or wallet APK.** Send belongs on **POS terminal apps** only (Cheko, handheld Android POS, PTSP till software). A retail banking app that advertises checkouts turns every customer phone into a till.
 
 ---
 
@@ -51,6 +53,7 @@ Follow this even if you use your own bank backend:
 4. `POST` `{ payload, signature_alg, signature }` to your `/verify-broadcast` (or CheckoutPay). Failure is a non-2xx status **or** `valid: false`.
 5. Amounts on wire are **kobo** → divide by 100 for transfer UI; `0` / `session_kind: presence` → customer enters amount.
 6. Pay out using **`recipient_account` / `recipient_bank_code` from the verify response**, not BLE alone, with `session_uuid` as the idempotency key.
+7. Show **`merchant_name` from verify** in large type. The customer must confirm they are paying **that shop**. BLE is public: anyone with an enrolled POS can advertise. You cannot stop a thief from trying; the name on screen will be **their** enrolled business, not the shop the customer is standing in. If the name is wrong, do not pay.
 
 ---
 
@@ -63,7 +66,7 @@ Follow this even if you use your own bank backend:
 | **Web (PWA)** | `sdk/typescript/` or `demos/web-receiver/checkout-broadcast.js` | `receive` |
 | **React Native** | Wrap native Android/iOS modules | `receive` |
 
-**Do not** set `role: "send"` in a consumer banking app unless you also operate merchant POS products.
+**Never** set `role: "send"` or `"both"` in a consumer banking / wallet app. If the same company also ships a **separate POS app**, that POS APK uses send; the customer app stays receive-only.
 
 ---
 

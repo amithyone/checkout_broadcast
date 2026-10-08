@@ -4,6 +4,8 @@ This guide is for **Point-of-Sale (POS) developers** — shop terminals, Windows
 
 Your app plays the **sender** role: after checkout is complete (items scanned, total calculated), you broadcast a signed payment request so nearby customers can pay from their banking app.
 
+Checkout **send** is only for POS / till software (Windows Cheko, Linux POS, handheld Android POS, PTSP terminals). Do not put send into a consumer banking app — those apps only receive.
+
 ---
 
 ## 1. What you need before coding

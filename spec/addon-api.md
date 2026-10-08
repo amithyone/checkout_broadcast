@@ -6,11 +6,13 @@ Drop-in SDK for Android, iOS, Web, and Windows host apps.
 
 ## Roles
 
-| Role | Send | Receive |
-|------|------|---------|
-| `send` | yes | no |
-| `receive` | no | yes |
-| `both` | yes | yes |
+| Role | Send | Receive | Who may use it |
+|------|------|---------|----------------|
+| `send` | yes | no | POS terminal apps only |
+| `receive` | no | yes | Banking / wallet apps |
+| `both` | yes | yes | POS apps that also listen (e.g. waiter phone). **Not** retail banking APKs |
+
+Consumer bank apps must ship `receive` only. Do not advertise checkout from Kuda / GTBank / OPay-style customer apps.
 
 ## Config
 
@@ -33,8 +35,9 @@ interface CheckoutBroadcastConfig {
 
 ## Platform Defaults (overridable)
 
-- Windows → `send`
-- Android / iOS → `receive`
+- Windows POS (Cheko) → `send`
+- Android / iOS **POS / handheld till** → `send`
+- Android / iOS **wallet / retail banking** → `receive` only
 - Web → `receive`
 
 ## Methods

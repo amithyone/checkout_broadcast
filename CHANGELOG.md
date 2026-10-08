@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.3] - 2026-10-08
+
+### Changed
+- Docs: bank/wallet apps are **receive only** (no checkout broadcast). Send stays on POS terminal apps. Customers must confirm bank-verified `merchant_name`; an enrolled till that turns thief still shows *their* shop name. Trying cannot be stopped on the radio.
+
 ## [1.4.2] - 2026-10-08
 
 ### Changed

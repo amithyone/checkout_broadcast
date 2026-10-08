@@ -102,6 +102,7 @@ Compact wire (what is often on BLE) — expand before verify if the server does 
 | `amount_ngn` | Echo of the signed amount (kobo for wire/Cheko). Receivers use the packet amount (`amt ÷ 100`) |
 | `session_kind` | `presence` or `pos_checkout` when server supports it |
 | `session_status` | Optional: `open` \| `paid` \| `cancelled` |
+| `merchant_name` | From **registry**. Wallet must show this; customer confirms the shop. Not on BLE. An enrolled thief still verifies — the name is *their* business, not the store the payer is in. |
 | `recipient_*` | From **registry** — never trust BLE alone for payout account |
 
 Receivers should also accept the fields wrapped in `{ "data": { … } }` and these aliases: `merchantName`, `session_uuid_v4`, `account_number` (for `recipient_account`), `bank_code` (for `recipient_bank_code`). If `merchant_name` is missing, show "Shop".
