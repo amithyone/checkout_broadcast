@@ -1,5 +1,6 @@
 export type SignatureAlg = "HMAC-SHA256" | "ed25519" | "ED25519";
 export type TransportKind = "ble" | "simulated";
+export type BroadcastRole = "send" | "receive" | "both";
 
 export interface TransactionDetails {
   currency_code: "NGN";

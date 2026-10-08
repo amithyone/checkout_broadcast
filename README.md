@@ -84,18 +84,22 @@ docker compose up --build
 # API: http://127.0.0.1:8090/health
 ```
 
-## Install from package registries
+## Install
+
+> **Registry packages are coming soon.** `checkout-broadcast` (PyPI) and `@checkout-broadcast/web` (npm) are not published yet. Until then, install from GitHub:
 
 ```bash
 # Python (POS SDK)
-pip install checkout-broadcast
-pip install "checkout-broadcast[ble]"    # BLE on Windows/Linux
+pip install "git+https://github.com/amithyone/checkout_broadcast.git@v1.3.1"
+pip install "checkout-broadcast[ble] @ git+https://github.com/amithyone/checkout_broadcast.git@v1.3.1"   # BLE on Windows/Linux
 
 # Web / Node (banking app SDK)
-npm install @checkout-broadcast/web
+git clone https://github.com/amithyone/checkout_broadcast.git
+cd checkout_broadcast/sdk/typescript && npm ci && npm run build && npm pack
+npm install /path/to/checkout-broadcast-web-1.3.1.tgz   # in your app
 ```
 
-See **[docs/publishing.md](docs/publishing.md)** for maintainer release steps (PyPI, npm, Maven).
+Once published, these will become `pip install checkout-broadcast` and `npm install @checkout-broadcast/web`. See **[docs/publishing.md](docs/publishing.md)** for maintainer release steps (PyPI, npm, Maven).
 
 ## Security
 

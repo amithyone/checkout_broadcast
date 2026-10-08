@@ -13,14 +13,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - working-directory: sdk/typescript
+        run: |
+          npm ci
+          npm run build
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: pip install -r requirements.txt jsonschema build
       - run: PYTHONPATH="sdk/python:." pytest tests/ -v
+      - run: python -m build
 
+  # Enable by setting repository variable PUBLISH_PYPI=true after configuring
+  # a PyPI trusted publisher for this repo and workflow (environment: pypi).
   publish-pypi:
     needs: test
+    if: vars.PUBLISH_PYPI == 'true'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -34,8 +45,10 @@ jobs:
       - run: python -m build
       - uses: pypa/gh-action-pypi-publish@release/v1
 
+  # Enable by setting repository variable PUBLISH_NPM=true and secret NPM_TOKEN.
   publish-npm:
     needs: test
+    if: vars.PUBLISH_NPM == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

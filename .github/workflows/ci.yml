@@ -16,6 +16,16 @@ jobs:
         with:
           python-version: "3.11"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build TypeScript SDK
+        working-directory: sdk/typescript
+        run: |
+          npm ci
+          npm run build
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt

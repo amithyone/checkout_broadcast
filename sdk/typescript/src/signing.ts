@@ -1,4 +1,12 @@
-import { createHash, createHmac, sign as cryptoSign, verify as cryptoVerify, KeyObject } from "crypto";
+import {
+  createHash,
+  createHmac,
+  createPrivateKey,
+  createPublicKey,
+  sign as cryptoSign,
+  verify as cryptoVerify,
+  KeyObject,
+} from "crypto";
 import type { Payload, SignatureAlg } from "./types.js";
 
 export function hashBankName(bankName: string): string {
@@ -59,7 +67,11 @@ function ed25519PrivateKey(signingKeyB64: string): KeyObject {
   if (!seed) {
     throw new Error("Invalid Ed25519 signing key: expected base64 32- or 64-byte key material");
   }
-  return KeyObject.from({ key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), seed]), format: "der", type: "pkcs8" });
+  return createPrivateKey({
+    key: Buffer.concat([Buffer.from("302e020100300506032b657004220420", "hex"), seed]),
+    format: "der",
+    type: "pkcs8",
+  });
 }
 
 export function signPayloadEd25519(payload: Payload, signingKeyB64: string): string {
@@ -72,7 +84,7 @@ export function verifyEd25519(payload: Payload, publicKeyB64: string, signature:
   const publicKeyBytes = decodeKeyMaterial(publicKeyB64, 32);
   const signatureBytes = decodeKeyMaterial(signature, 64);
   if (!publicKeyBytes || !signatureBytes) return false;
-  const publicKey = KeyObject.from({
+  const publicKey = createPublicKey({
     key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), publicKeyBytes]),
     format: "der",
     type: "spki",

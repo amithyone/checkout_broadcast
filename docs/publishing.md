@@ -201,20 +201,38 @@ See [`.github/workflows/release.yml`](../.github/workflows/release.yml).
 
 On push tag `v*`:
 
-- Runs tests
-- Builds Python wheel → uploads to PyPI (needs `PYPI_API_TOKEN` secret)
-- Builds npm package → publishes (needs `NPM_TOKEN` secret)
+- Builds the TypeScript SDK, runs tests, builds the Python wheel
+- Publishes to PyPI **only if** repository variable `PUBLISH_PYPI` is `true`
+- Publishes to npm **only if** repository variable `PUBLISH_NPM` is `true`
+
+Without those variables, a tag push still runs tests and builds, but skips publishing, so releases never fail just because registry accounts aren't set up yet.
 
 Android Maven publish is manual until Sonatype credentials are configured.
 
-### Required GitHub secrets
+### Enable PyPI (trusted publishing, no token)
 
-| Secret | Used for |
-|--------|----------|
-| `PYPI_API_TOKEN` | Python PyPI upload |
-| `NPM_TOKEN` | npm publish |
-| `OSSRH_USERNAME` | Maven Central (optional) |
-| `OSSRH_PASSWORD` | Maven Central (optional) |
+1. On pypi.org → **Your account → Publishing → Add a new pending publisher**
+2. Project `checkout-broadcast`, owner `amithyone`, repo `checkout_broadcast`, workflow `release.yml`, environment `pypi`
+3. In GitHub → **Settings → Environments**, create environment `pypi`
+4. In GitHub → **Settings → Secrets and variables → Actions → Variables**, add `PUBLISH_PYPI` = `true`
+
+### Enable npm
+
+1. Create the `@checkout-broadcast` org on npmjs.com (or rename the package to an unscoped free name)
+2. Create an **automation** access token
+3. Add repository secret `NPM_TOKEN` and repository variable `PUBLISH_NPM` = `true`
+
+### Required GitHub settings
+
+| Name | Kind | Used for |
+|------|------|----------|
+| `PUBLISH_PYPI` | variable | Turns on PyPI publish job |
+| `PUBLISH_NPM` | variable | Turns on npm publish job |
+| `NPM_TOKEN` | secret | npm publish |
+| `OSSRH_USERNAME` | secret | Maven Central (optional) |
+| `OSSRH_PASSWORD` | secret | Maven Central (optional) |
+
+Publishing an existing tag after enabling: re-run the **Release** workflow for that tag from the Actions tab.
 
 ---
 

@@ -1,3 +1,4 @@
+/// <reference types="web-bluetooth" />
 import { SERVICE_UUID, PACKET_CHAR_UUID } from "./bleConstants.js";
 import type { SignedPacket } from "../types.js";
 

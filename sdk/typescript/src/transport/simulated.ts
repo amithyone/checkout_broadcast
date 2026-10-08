@@ -1,5 +1,5 @@
 import { BleTransport } from "./ble.js";
-import type { SignedPacket } from "./types.js";
+import type { SignedPacket } from "../types.js";
 
 type PacketListener = (packet: SignedPacket) => void;
 
