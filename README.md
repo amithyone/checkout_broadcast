@@ -1,12 +1,12 @@
 # Checkout Broadcast
 
-Open-source SDK and protocol for **frictionless POS-to-banking-app payments** in Nigeria.
+Source-available SDK and protocol for **frictionless POS-to-banking-app payments** in Nigeria.
 
 After checkout, a shop terminal broadcasts a **signed payment request** over Bluetooth LE. The customer's banking app picks it up, verifies it with the bank server, and **pre-fills the transfer screen** — no typing account numbers, no scanning, no wrong amounts.
 
 [![CI](https://github.com/amithyone/checkout_broadcast/actions/workflows/ci.yml/badge.svg)](https://github.com/amithyone/checkout_broadcast/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/amithyone/checkout_broadcast)](https://github.com/amithyone/checkout_broadcast/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE)
 [![Discussions](https://img.shields.io/github/discussions/amithyone/checkout_broadcast)](https://github.com/amithyone/checkout_broadcast/discussions)
 [![Successful checkouts](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fcheckout-broadcast-stats.vercel.app%2Fusage%2Fpublic&query=%24.ok_count&label=successful%20checkouts&color=20ccb4)](https://amithyone.github.io/checkout_broadcast/)
 
@@ -178,4 +178,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Questions and integration help: [Discuss
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+[Creative Commons Attribution-NonCommercial 4.0 International](https://creativecommons.org/licenses/by-nc/4.0/) (CC BY-NC 4.0) — see [LICENSE](LICENSE).
+
+Free for non-commercial use with attribution. Commercial use, such as a bank, wallet or POS maker shipping it to customers, needs a separate commercial license: ask in [Discussions](https://github.com/amithyone/checkout_broadcast/discussions) or contact the maintainer.
+
+Releases up to and including v1.5.0 were published under MIT and stay available under MIT.

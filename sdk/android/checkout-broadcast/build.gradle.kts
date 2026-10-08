@@ -51,8 +51,8 @@ publishing {
                 url.set("https://github.com/amithyone/checkout_broadcast")
                 licenses {
                     license {
-                        name.set("MIT License")
-                        url.set("https://opensource.org/licenses/MIT")
+                        name.set("CC BY-NC 4.0")
+                        url.set("https://creativecommons.org/licenses/by-nc/4.0/")
                     }
                 }
                 scm {

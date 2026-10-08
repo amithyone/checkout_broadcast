@@ -2,7 +2,7 @@
 
 **An open protocol that lets a shop till send a signed payment request to the customer's banking app over Bluetooth, so the transfer opens pre-filled with the right merchant and amount.**
 
-MIT licensed · In production with CheckoutNow and Cheko / CheckoutPay · [github.com/amithyone/checkout_broadcast](https://github.com/amithyone/checkout_broadcast)
+CC BY-NC 4.0 (free for non-commercial use) · In production with CheckoutNow and Cheko / CheckoutPay · [github.com/amithyone/checkout_broadcast](https://github.com/amithyone/checkout_broadcast)
 
 ---
 

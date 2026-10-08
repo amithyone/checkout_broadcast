@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Checkout Broadcast — open protocol for tap-free POS payments in Nigeria</title>
-  <meta name="description" content="Open-source SDK and protocol: a shop till broadcasts a signed payment request over Bluetooth LE and the customer's banking app pre-fills the transfer. No typing account numbers, no scanning." />
+  <meta name="description" content="Source-available SDK and protocol: a shop till broadcasts a signed payment request over Bluetooth LE and the customer's banking app pre-fills the transfer. No typing account numbers, no scanning." />
   <meta name="theme-color" content="#dceee9" />
   <meta property="og:title" content="Checkout Broadcast" />
   <meta property="og:description" content="Open protocol for POS-to-banking-app payments in Nigeria. Signed by the till, verified by the bank, paid over existing rails." />
@@ -394,7 +394,7 @@
       <!-- Hero -->
       <div class="hero">
         <div class="reveal">
-          <span class="chip"><span class="dot"></span>Open source · MIT · Language-agnostic · Built in Nigeria</span>
+          <span class="chip"><span class="dot"></span>Source available · CC BY-NC 4.0 · Language-agnostic · Built in Nigeria</span>
           <h1>Pay at the counter. <span class="grad-text">No account typing.</span></h1>
           <p class="lead">
             The shop's till broadcasts a signed payment request over Bluetooth. The customer's banking app verifies it with the bank
@@ -706,7 +706,7 @@
           <a href="#stats" class="stats-link" hidden>Stats</a>
           <a href="https://github.com/amithyone/checkout_broadcast/discussions">Discussions</a>
         </nav>
-        <span>MIT License</span>
+        <span><a href="https://creativecommons.org/licenses/by-nc/4.0/">CC BY-NC 4.0</a></span>
       </div>
     </footer>
   </div>
@@ -732,7 +732,7 @@
       ['How do customers know a shop accepts it?', 'On Android, the bank app can listen quietly in low-power mode. When the phone is near a till it tells the bank, and the bank pushes "MIDAS AGRO is open — tap to pay". Tapping opens the list of tills in range; the customer still picks their till and confirms with PIN. On iPhone the bank can still push, and customers open Pay at shop at the counter.'],
       ['What if two tills are side by side?', 'The phone smooths the Bluetooth signal and lists only the tills that are close, strongest first. Adjacent tills both show up, so the customer picks theirs and sees the bank-verified shop name before paying. It never auto-selects a till by signal strength.'],
       ['How is it different from NQR?', 'Both start a merchant transfer with the amount set by the till. NQR needs a camera and a printed or displayed code; Checkout Broadcast works by proximity with no code at all. Banks can support both.'],
-      ['What does it cost?', 'Nothing. It is MIT licensed. Banks, wallets and POS makers can use, modify and ship it without fees.'],
+      ['What does it cost?', 'It is free for non-commercial use under CC BY-NC 4.0, with attribution. Commercial use, such as a bank, wallet or POS maker shipping it to customers, needs a commercial license: ask in GitHub Discussions or email the maintainer. Releases up to v1.5.0 remain available under MIT.'],
       ['How do we start a pilot?', 'Open a discussion on GitHub or email the maintainer. A typical pilot is one bank or wallet plus a handful of merchants on one POS model.'],
       ['Is this a Laravel protocol?', 'No. The protocol is compact BLE plus JSON verify. Use any language. The Laravel controller and Python bank_api are example servers.'],
       ['Can Android POS terminals broadcast?', 'Not yet in the open SDK. Handheld Android POS send is planned and will use the same compact wire as Cheko. Today, tills send with the Python SDK on Windows or Linux. Android and iPhone apps can already receive.'],

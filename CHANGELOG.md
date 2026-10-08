@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **License changed from MIT to Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0).** Free for non-commercial use with attribution; commercial use needs a separate license from the maintainer. Releases up to and including v1.5.0 remain available under MIT.
+
 ## [1.5.0] - 2026-10-08
 
 Phones now list only the tills in range, and banks can add optional "shop nearby" alerts. No change to the packet format, signing, verify endpoint, or tills.
