@@ -1,0 +1,122 @@
+{
+  "description": "Till proximity filtering conformance vectors (spec/ble-transport.md#proximity-filtering-optional-recommended). Replay steps in order: 'signal' feeds one advert, 'check' evaluates at time t and compares device ids in order. Smoothed values compare within 0.01 dB.",
+  "config": {
+    "alpha": 0.3,
+    "in_range_dbm": -75,
+    "window_db": 12,
+    "hysteresis_db": 5,
+    "hysteresis_ms": 3000,
+    "stale_ms": 10000,
+    "min_peek_dbm": -90
+  },
+  "vectors": [
+    {
+      "name": "single_close_till_visible",
+      "steps": [
+        { "t": 0, "signal": { "device": "A", "rssi": -60 } },
+        { "t": 0, "check": { "visible": ["A"], "hidden": [], "smoothed": { "A": -60 } } }
+      ]
+    },
+    {
+      "name": "far_side_of_shop_hidden",
+      "steps": [
+        { "t": 0, "signal": { "device": "A", "rssi": -55 } },
+        { "t": 0, "signal": { "device": "B", "rssi": -70 } },
+        { "t": 100, "check": { "visible": ["A"], "hidden": ["B"] } }
+      ]
+    },
+    {
+      "name": "adjacent_tills_both_visible_strongest_first",
+      "steps": [
+        { "t": 0, "signal": { "device": "B", "rssi": -64 } },
+        { "t": 0, "signal": { "device": "A", "rssi": -58 } },
+        { "t": 100, "check": { "visible": ["A", "B"], "hidden": [] } }
+      ]
+    },
+    {
+      "name": "all_far_means_move_closer",
+      "steps": [
+        { "t": 0, "signal": { "device": "A", "rssi": -82 } },
+        { "t": 0, "signal": { "device": "B", "rssi": -85 } },
+        { "t": 100, "check": { "visible": [], "hidden": ["A", "B"] } }
+      ]
+    },
+    {
+      "name": "ema_smoothing",
+      "steps": [
+        { "t": 0, "signal": { "device": "A", "rssi": -60 } },
+        { "t": 200, "signal": { "device": "A", "rssi": -78 } },
+        { "t": 200, "check": { "visible": ["A"], "hidden": [], "smoothed": { "A": -65.4 } } }
+      ]
+    },
+    {
+      "name": "hysteresis_hides_after_3s_well_below",
+      "steps": [
+        { "t": 0, "signal": { "device": "A", "rssi": -60 } },
+        { "t": 0, "check": { "visible": ["A"], "hidden": [] } },
+        { "t": 1000, "signal": { "device": "A", "rssi": -95 } },
+        { "t": 1000, "check": { "visible": ["A"], "hidden": [], "smoothed": { "A": -70.5 } } },
+        { "t": 1500, "signal": { "device": "A", "rssi": -95 } },
+        { "t": 1500, "check": { "visible": ["A"], "hidden": [], "smoothed": { "A": -77.85 } } },
+        { "t": 2000, "signal": { "device": "A", "rssi": -95 } },
+        { "t": 2000, "check": { "visible": ["A"], "hidden": [], "smoothed": { "A": -82.995 } } },
+        { "t": 4000, "check": { "visible": ["A"], "hidden": [] } },
+        { "t": 5000, "check": { "visible": [], "hidden": ["A"] } }
+      ]
+    },
+    {
+      "name": "hysteresis_band_keeps_till_shown",
+      "steps": [
+        { "t": 0, "signal": { "device": "A", "rssi": -72 } },
+        { "t": 0, "check": { "visible": ["A"], "hidden": [] } },
+        { "t": 500, "signal": { "device": "A", "rssi": -84 } },
+        { "t": 500, "check": { "visible": ["A"], "hidden": [], "smoothed": { "A": -75.6 } } },
+        { "t": 9000, "check": { "visible": ["A"], "hidden": [] } }
+      ]
+    },
+    {
+      "name": "stale_till_dropped_after_10s",
+      "steps": [
+        { "t": 0, "signal": { "device": "A", "rssi": -60 } },
+        { "t": 10000, "check": { "visible": ["A"], "hidden": [] } },
+        { "t": 10001, "check": { "visible": [], "hidden": [] } }
+      ]
+    },
+    {
+      "name": "far_till_shows_when_strongest_goes_stale",
+      "steps": [
+        { "t": 0, "signal": { "device": "A", "rssi": -55 } },
+        { "t": 0, "signal": { "device": "B", "rssi": -70 } },
+        { "t": 0, "check": { "visible": ["A"], "hidden": ["B"] } },
+        { "t": 6000, "signal": { "device": "B", "rssi": -70 } },
+        { "t": 11000, "check": { "visible": ["B"], "hidden": [] } }
+      ]
+    },
+    {
+      "name": "push_named_till_always_listed_first",
+      "steps": [
+        { "t": 0, "signal": { "device": "A", "rssi": -55, "terminal_id": "CP-A" } },
+        { "t": 0, "signal": { "device": "B", "rssi": -84, "terminal_id": "CP-B" } },
+        { "t": 100, "check": { "preferred": "cp-b", "visible": ["B", "A"], "hidden": [] } },
+        { "t": 200, "check": { "visible": ["A"], "hidden": ["B"] } }
+      ]
+    },
+    {
+      "name": "unknown_rssi_ignored",
+      "steps": [
+        { "t": 0, "signal": { "device": "A", "rssi": -60 } },
+        { "t": 500, "signal": { "device": "A", "rssi": 127 } },
+        { "t": 500, "signal": { "device": "C", "rssi": 127 } },
+        { "t": 500, "check": { "visible": ["A"], "hidden": [], "smoothed": { "A": -60 } } }
+      ]
+    },
+    {
+      "name": "skip_gatt_peek_when_clearly_far",
+      "steps": [
+        { "t": 0, "signal": { "device": "A", "rssi": -70 } },
+        { "t": 0, "signal": { "device": "B", "rssi": -95 } },
+        { "t": 0, "check": { "visible": ["A"], "hidden": ["B"], "peek": { "A": true, "B": false, "Z": true } } }
+      ]
+    }
+  ]
+}

@@ -10,6 +10,10 @@ public struct CheckoutBroadcastConfig {
     public var verifyHeaders: [String: String]
     public var onPaymentReceived: ((VerifiedPayment) -> Void)?
     public var onError: ((Error) -> Void)?
+    /// About once a second while BLE receive runs (main queue): tills split into in-range and farther.
+    /// Join with `VerifiedPayment.terminalId` via `TillSignal.terminalId`. List the visible ones; never
+    /// auto-select. Uses `CheckoutBroadcastAddon.preferredTerminalId`.
+    public var onTillsUpdated: ((TillProximityView) -> Void)?
 
     public init(
         role: String,
@@ -89,8 +93,17 @@ public final class CheckoutBroadcastAddon {
     private var bleReceiver: CheckoutBleReceiver?
     private var seenSessions = Set<String>()
 
+    /// Terminal named in a push notification: always listed first by `tills()`, never auto-selected.
+    public var preferredTerminalId: String?
+
     public init(config: CheckoutBroadcastConfig) {
         self.config = config
+    }
+
+    /// Current in-range / farther split. Empty until BLE receive has heard a till.
+    public func tills(nowMs: Int64 = TillProximity.nowMs()) -> TillProximityView {
+        bleReceiver?.proximity.evaluate(nowMs: nowMs, preferred: preferredTerminalId)
+            ?? TillProximityView(visible: [], hidden: [])
     }
 
     public func start() throws {
@@ -98,6 +111,12 @@ public final class CheckoutBroadcastAddon {
         if config.role == "receive" || config.role == "both" {
             if config.transport == "ble" {
                 bleReceiver = CheckoutBleReceiver()
+                if let onTillsUpdated = config.onTillsUpdated {
+                    bleReceiver?.onTillsChanged = { [weak self] in
+                        guard let self else { return }
+                        onTillsUpdated(self.tills())
+                    }
+                }
                 bleReceiver?.startScanning(onPacket: { [weak self] data in
                     self?.handlePacketData(data)
                 }, onError: { [weak self] error in

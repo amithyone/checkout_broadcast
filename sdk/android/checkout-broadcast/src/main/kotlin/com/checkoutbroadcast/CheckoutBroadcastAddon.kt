@@ -28,6 +28,12 @@ data class CheckoutBroadcastConfig(
     /** Extra headers on `POST /verify-broadcast`, e.g. the signed-in customer's session token. */
     val verifyHeaders: Map<String, String> = emptyMap(),
     val onPaymentReceived: ((VerifiedPayment) -> Unit)? = null,
+    /**
+     * About once a second while BLE receive runs (main thread): tills split into in-range and farther.
+     * Join with [VerifiedPayment.terminalId] via [TillSignal.terminalId]. List the visible ones; never
+     * auto-select. Uses [CheckoutBroadcastAddon.preferredTerminalId].
+     */
+    val onTillsUpdated: ((TillProximityView) -> Unit)? = null,
     val onSendComplete: ((String) -> Unit)? = null,
     val onError: ((Exception) -> Unit)? = null,
 )
@@ -61,6 +67,16 @@ class CheckoutBroadcastAddon(
     private var started = false
     private val seenSessions = ConcurrentHashMap.newKeySet<String>()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Terminal named in a push notification: always listed first by [tills], never auto-selected. */
+    @Volatile
+    var preferredTerminalId: String? = null
+
+    /** Current in-range / farther split. Empty until BLE receive has heard a till. */
+    fun tills(nowMs: Long = System.currentTimeMillis()): TillProximityView {
+        val receiver = bleReceiver ?: internalBleReceiver ?: return TillProximityView(emptyList(), emptyList())
+        return receiver.proximity.evaluate(nowMs, preferredTerminalId)
+    }
 
     fun start() {
         if (started) return
@@ -103,6 +119,7 @@ class CheckoutBroadcastAddon(
             adapter = adapter,
             onPacketBytes = { onBlePacketBytes(it) },
             onError = config.onError,
+            onTillsChanged = config.onTillsUpdated?.let { cb -> { cb(tills()) } },
         )
         return internalBleReceiver
     }

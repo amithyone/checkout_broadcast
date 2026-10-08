@@ -16,11 +16,19 @@ public enum BleConstants {
 /// - Uses the packet embedded in advert service/manufacturer data when present (no connection).
 /// - Otherwise connects to one till at a time and **reads** the packet characteristic. Never
 ///   subscribes to notifications and never pairs. Verification always happens server-side.
+/// - Feeds every advert's RSSI into `proximity` and skips the connection for tills that are clearly
+///   far away. While scanning, `onTillsChanged` fires about once a second so a picker can list only
+///   in-range tills (`TillProximity.evaluate`). Never auto-select a till from this.
 public final class CheckoutBleReceiver: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     private var central: CBCentralManager!
     private var onPacket: ((Data) -> Void)?
     private var onError: ((Error) -> Void)?
     private var scanning = false
+
+    public let proximity = TillProximity()
+    public var onTillsChanged: (() -> Void)?
+    private var tillsTimer: Timer?
+    private var tillsWereListed = false
 
     private var activePeripheral: CBPeripheral?
     private var timeoutWork: DispatchWorkItem?
@@ -42,11 +50,22 @@ public final class CheckoutBleReceiver: NSObject, CBCentralManagerDelegate, CBPe
         self.onError = onError
         scanning = true
         beginScanIfReady()
+        tillsTimer?.invalidate()
+        tillsTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self, self.scanning else { return }
+            let hasTills = !self.proximity.isEmpty
+            if hasTills || self.tillsWereListed { self.onTillsChanged?() }
+            self.tillsWereListed = hasTills
+        }
     }
 
     public func stopScanning() {
         scanning = false
         central.stopScan()
+        tillsTimer?.invalidate()
+        tillsTimer = nil
+        tillsWereListed = false
+        proximity.clear()
         queue.removeAll()
         queuedIds.removeAll()
         readIds.removeAll()
@@ -118,16 +137,18 @@ public final class CheckoutBleReceiver: NSObject, CBCentralManagerDelegate, CBPe
         guard scanning, looksLikeCheckout(peripheral, advertisementData) else { return }
         let id = peripheral.identifier
         let now = Date()
+        proximity.updateSignal(deviceId: id.uuidString, rssi: RSSI.intValue, nowMs: TillProximity.nowMs())
         if let last = recentlyReadAt[id], now.timeIntervalSince(last) < BleConstants.readCooldown {
             return
         }
 
         if let data = packetFromAdvert(advertisementData) {
             recentlyReadAt[id] = now
-            onPacket?(data)
+            deliver(id, data)
             return
         }
 
+        guard proximity.shouldPeek(deviceId: id.uuidString) else { return }
         guard !queuedIds.contains(id), !readIds.contains(id) else { return }
         queuedIds.insert(id)
         queue.append(peripheral)
@@ -214,8 +235,15 @@ public final class CheckoutBleReceiver: NSObject, CBCentralManagerDelegate, CBPe
            let data = characteristic.value,
            BroadcastWire.looksLikePacket(data) {
             readIds.insert(peripheral.identifier)
-            onPacket?(data)
+            deliver(peripheral.identifier, data)
         }
         finishAndContinue(peripheral)
+    }
+
+    private func deliver(_ id: UUID, _ data: Data) {
+        if let terminalId = BroadcastWire.parse(data)?.terminalId, !terminalId.isEmpty {
+            proximity.setTerminal(deviceId: id.uuidString, terminalId: terminalId)
+        }
+        onPacket?(data)
     }
 }

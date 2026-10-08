@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
 import com.checkoutbroadcast.BroadcastWire
+import com.checkoutbroadcast.TillProximity
 import java.util.UUID
 
 /** BLE GATT UUIDs — must match spec/ble-transport.md */
@@ -35,6 +36,9 @@ object BleConstants {
  * - Otherwise connects to one till at a time and **reads** the packet characteristic. Never
  *   enables notify/indicate and never bonds — writing the CCCD often forces an Android pairing
  *   dialog. Verification always happens server-side.
+ * - Feeds every advert's RSSI into [proximity] and skips the connection for tills that are clearly
+ *   far away. While scanning, [onTillsChanged] fires about once a second so a picker can list only
+ *   in-range tills ([TillProximity.evaluate]). Never auto-select a till from this.
  *
  * Requires BLUETOOTH_SCAN + BLUETOOTH_CONNECT (API 31+) or Bluetooth + fine location (older).
  */
@@ -44,6 +48,8 @@ class BleCheckoutReceiver(
     private val adapter: BluetoothAdapter,
     private val onPacketBytes: (ByteArray) -> Unit,
     private val onError: ((Exception) -> Unit)? = null,
+    val proximity: TillProximity = TillProximity(),
+    private val onTillsChanged: (() -> Unit)? = null,
 ) {
     private val serviceParcel = ParcelUuid(BleConstants.SERVICE_UUID)
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -52,6 +58,17 @@ class BleCheckoutReceiver(
     private var scanning = false
     private var activeGatt: BluetoothGatt? = null
     private var timeoutRunnable: Runnable? = null
+    private var tillsWereListed = false
+
+    private val tillsTicker = object : Runnable {
+        override fun run() {
+            if (!scanning) return
+            val hasTills = !proximity.isEmpty()
+            if (hasTills || tillsWereListed) onTillsChanged?.invoke()
+            tillsWereListed = hasTills
+            mainHandler.postDelayed(this, TILLS_TICK_MS)
+        }
+    }
 
     // Touched only on the main thread.
     private val deviceQueue = ArrayDeque<BluetoothDevice>()
@@ -84,6 +101,7 @@ class BleCheckoutReceiver(
             .build()
         scanner.startScan(null, settings, scanCallback)
         scanning = true
+        if (onTillsChanged != null) mainHandler.postDelayed(tillsTicker, TILLS_TICK_MS)
     }
 
     fun stop() {
@@ -94,11 +112,14 @@ class BleCheckoutReceiver(
             }
         }
         scanning = false
+        mainHandler.removeCallbacks(tillsTicker)
         mainHandler.post {
             deviceQueue.clear()
             queuedAddresses.clear()
             readDevices.clear()
             finishActiveGatt()
+            proximity.clear()
+            tillsWereListed = false
         }
     }
 
@@ -136,15 +157,17 @@ class BleCheckoutReceiver(
         if (!scanning || !looksLikeCheckout(result)) return
         val address = result.device.address ?: return
         val now = System.currentTimeMillis()
+        proximity.updateSignal(address, result.rssi, now)
         if (now - (recentlyReadAt[address] ?: 0L) < BleConstants.READ_COOLDOWN_MS) return
 
         val advertBytes = packetFromAdvert(result)
         if (advertBytes != null) {
             recentlyReadAt[address] = now
-            onPacketBytes(advertBytes)
+            deliverPacket(address, advertBytes)
             return
         }
 
+        if (!proximity.shouldPeek(address)) return
         if (address in queuedAddresses || address in readDevices) return
         queuedAddresses.add(address)
         deviceQueue.addLast(result.device)
@@ -244,8 +267,19 @@ class BleCheckoutReceiver(
         val address = gatt.device.address
         if (status == BluetoothGatt.GATT_SUCCESS && value != null && BroadcastWire.looksLikePacket(value)) {
             mainHandler.post { readDevices.add(address) }
-            onPacketBytes(value)
+            deliverPacket(address, value)
         }
         finishAndContinue(gatt)
+    }
+
+    private fun deliverPacket(address: String, bytes: ByteArray) {
+        BroadcastWire.parse(bytes)?.terminalId?.takeIf { it.isNotBlank() }?.let {
+            proximity.setTerminal(address, it)
+        }
+        onPacketBytes(bytes)
+    }
+
+    private companion object {
+        const val TILLS_TICK_MS = 1_000L
     }
 }

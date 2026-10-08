@@ -5,6 +5,7 @@ from checkout_broadcast.amount import from_packet_amount, to_packet_amount
 from checkout_broadcast.api_url import normalize_bank_api_url, sync_signing_key_url, verify_broadcast_url
 from checkout_broadcast.errors import RoleNotAllowedError, VerificationError
 from checkout_broadcast.protocol import CheckoutData, SignedPacket, VerifiedPayment
+from checkout_broadcast.proximity import ProximityConfig, TillProximityFilter, TillSignal
 from checkout_broadcast.wire_format import (
     encode_wire_envelope,
     normalize_ble_read_for_verify,
@@ -23,7 +24,10 @@ __all__ = [
     "from_packet_amount",
     "normalize_bank_api_url",
     "normalize_ble_read_for_verify",
+    "ProximityConfig",
     "sync_signing_key_url",
+    "TillProximityFilter",
+    "TillSignal",
     "to_packet_amount",
     "verify_broadcast_url",
     "wire_to_verify_envelope",

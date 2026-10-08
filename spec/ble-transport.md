@@ -35,6 +35,30 @@ To be found by every receiver, a till should:
 - advertise a local name starting with `CP-` (Cheko uses the terminal ID, e.g. `CP-1RK8Z`) or containing `CHECKOUT`, and
 - expose `cbbc0002-…` as **readable** without encryption or pairing.
 
+Optional, for shops with several tills side by side:
+
+- include the standard advert **Tx Power Level** field (AD type `0x0A`; on Windows `BluetoothLEAdvertisementPublisher.IncludeTransmitPowerLevel`). Receivers may log it; they don't require it. Do **not** add transmit power to the signed packet.
+- consider a lower transmit power so a till is not heard across the shop. Test with real phones first — too low and customers at the counter miss it.
+
+## Proximity filtering (optional, recommended)
+
+A phone near the counter can hear tills across the shop. Receivers should list only tills that are in range, and **must never auto-select or auto-pay because a till seems close** — RSSI varies by about 10 dB with phone model, grip and bodies in the way. The customer always taps a till, checks the bank-verified shop name, and confirms with PIN or biometrics. That includes tills named in a push notification: they are listed first, never opened automatically.
+
+Reference implementations: Python `checkout_broadcast.proximity.TillProximityFilter`, Android `TillProximity`, iOS `TillProximity`. Conformance vectors: [`tests/fixtures/proximity_vectors.json`](../tests/fixtures/proximity_vectors.json).
+
+| Rule | Default |
+|------|---------|
+| Smooth RSSI per till with an exponential moving average: `s = α·rssi + (1−α)·s_prev` (first sample `s = rssi`). Ignore `rssi ≥ 0` (Android/iOS report `127` when unknown). | `α = 0.3` |
+| A till is **in range** when `s ≥ T` **and** `s ≥ s_strongest − W` (keeps adjacent tills, hides the far side of the shop). | `T = −75 dBm`, `W = 12 dB` |
+| **Hysteresis:** a shown till is hidden only after `s < T − H` or `s < s_strongest − W − H` continuously for `D`. Inside the `H` band it stays shown. | `H = 5 dB`, `D = 3 s` |
+| **Stale:** a till not heard for `S` is dropped. | `S = 10 s` |
+| A till named in a push (`terminal_id` / `session_uuid`) is always listed, sorted first. | — |
+| Sort visible tills: push-named first, then `s` (strongest first), then terminal label. | — |
+| **Fallback:** if nothing is in range but tills were heard, show "Move closer to the till" and a "Show farther tills (N)" link. Never hide the right till for good. | — |
+| Don't GATT-peek tills with `s < P` (clearly far away). | `P = −90 dBm` |
+
+Distance in metres (`10^((txPower − s) / (10·n))`) is for logs only; it is not reliable enough to decide anything.
+
 ## Compact wire envelope (primary)
 
 Production POS writes a **compact** envelope, not the full verify body:
