@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.3.1] - 2026-10-08
+
+First tagged public release.
+
+### Fixed
+- TypeScript SDK now compiles: added missing `BroadcastRole` type, fixed simulated transport import path, added Node and Web Bluetooth type packages and a lockfile
+- TypeScript Ed25519 signing and verification loaded keys with `KeyObject.from`, which threw at runtime; now uses `createPrivateKey` / `createPublicKey` and matches Python signatures byte-for-byte
+
+### Added
+- Cross-SDK test that runs the built TypeScript SDK against the Python SDK (HMAC and Ed25519)
+- CI builds the TypeScript SDK
+- README: how-it-works diagram, comparison with manual transfer / virtual accounts / USSD / NQR, platform status, adopters
+- SECURITY.md: Ed25519 threat model, attacker outcomes, private reporting channel
+
+### Changed
+- Release workflow publishes to PyPI / npm only when `PUBLISH_PYPI` / `PUBLISH_NPM` repository variables are set
+- Python package uses SPDX license metadata
+- Versions synced to 1.3.1 across Python, npm, Android, and the reference bank API
+
 ## [1.3.0] - 2026-08-10
 
 ### Added
