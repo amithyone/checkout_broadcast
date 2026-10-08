@@ -102,12 +102,15 @@ The SDK handles BLE scanning, expanding the compact packet, skipping sessions it
 
 ### What CheckoutNow ships (reference UX)
 
-- **Pay at shop screen** listens for 90 s and lists every till it hears (several shops or tills can be nearby). Each row shows the short till label (last 2 digits of `terminal_id`, e.g. `01`), the amount, and "verifying…" / verified / the server error.
-- **Sorting:** the till the customer was nudged about first, then verified tills, then by label.
+- **Pay at shop screen** listens for 90 s and lists only the tills **in range** of the phone ([proximity filtering](../spec/ble-transport.md#proximity-filtering-optional-recommended)): smoothed RSSI ≥ −75 dBm and within 12 dB of the strongest till, so adjacent tills both show and the far side of the shop doesn't. Each row shows the short till label (last 2 digits of `terminal_id`, e.g. `01`), the amount, and "verifying…" / verified / the server error.
+- **Sorting:** the till the customer was nudged about first, then strongest signal, then by label.
+- **Nothing in range:** "Move closer to the till", plus a "Show farther tills (N)" link so the right till is never hidden for good.
+- **Never auto-select.** The customer always taps a till, sees the bank-verified shop name, and confirms with PIN. Signal strength varies too much between phones to pick a till for them.
 - **Checkout till:** amount is locked; one sheet shows merchant + amount and asks for PIN or passkey, then pays.
 - **Idle till (presence):** after verify, show "Enter amount for {merchant}", then PIN.
 - **Transfer:** bank transfer to `recipient_account` / `recipient_bank_code`, remark `Payment at {merchant_name}`, idempotency key = `session_uuid`.
-- **Push nudge (optional, server-driven):** when your backend knows the customer is near a till, send a push with `data.type` = `pay_at_shop` (also accepted: `checkout_broadcast_nearby`, `broadcast_proximity`), plus optional `terminal_id`, `session_uuid` and `merchant_name`. Tapping it opens the pay-at-shop screen; when that till is verified it is selected automatically.
+- **Push nudge (optional, server-driven):** when your backend knows the customer is near a till, send a push with `data.type` = `pay_at_shop` (also accepted: `checkout_broadcast_nearby`, `broadcast_proximity`), plus optional `terminal_id`, `session_uuid` and `merchant_name`. Tapping it opens the pay-at-shop list with that till first; the customer still taps it.
+- **Shop-nearby alerts (optional, Android):** a low-power listener reports nearby tills to your server, which pushes "{shop} is open — tap to pay". See [proximity-nudge.md](../spec/proximity-nudge.md) and the Android SDK's `ShopNearbyScanner`.
 
 ---
 
@@ -147,12 +150,20 @@ class PayAtShopController(private val activity: Activity) {
             transport = "ble",
             androidContext = activity.applicationContext,
             verifyHeaders = mapOf("Authorization" to "Bearer ${session.token}"), // optional
-            onPaymentReceived = { payment -> activity.runOnUiThread { showPrefilledTransfer(payment) } },
+            onPaymentReceived = { payment -> activity.runOnUiThread { verified[payment.terminalId] = payment; render() } },
+            // ~1/s: only tills in range of the phone (strongest first); the rest behind "Show farther tills".
+            onTillsUpdated = { tills -> inRange = tills.visible.mapNotNull { it.terminalId }; render() },
             onError = { err -> /* show err.message on the till row; keep listening */ },
         ),
     )
+    private val verified = linkedMapOf<String, VerifiedPayment>()
+    private var inRange: List<String> = emptyList()
 
-    fun onPayScreenVisible() {
+    /** List verified tills in [inRange] order; the customer taps one → [showPrefilledTransfer]. Never auto-select. */
+    private fun render() { /* … */ }
+
+    fun onPayScreenVisible(pushTerminalId: String? = null) {
+        addon.preferredTerminalId = pushTerminalId // listed first, not selected
         addon.resetSeenSessions()
         addon.start()
     }
@@ -175,7 +186,7 @@ class PayAtShopController(private val activity: Activity) {
 }
 ```
 
-The addon finds tills (unfiltered scan + advert match), takes the packet from the advert or does a read-only GATT peek, expands compact wire, and POSTs to your `/verify-broadcast` endpoint. `onPaymentReceived` runs on a background thread.
+The addon finds tills (unfiltered scan + advert match), takes the packet from the advert or does a read-only GATT peek, expands compact wire, and POSTs to your `/verify-broadcast` endpoint. `onPaymentReceived` runs on a background thread. It also smooths each till's signal and skips reading tills that are clearly far away; `onTillsUpdated` (main thread) and `addon.tills()` give the in-range / farther split. iOS has the same `onTillsUpdated`, `preferredTerminalId` and `tills()`.
 
 ### Amount locking
 
@@ -461,6 +472,7 @@ Broadcast contains masked suffix only. Full account resolution happens server-si
 - [Coexistence with proprietary nearby pay](../spec/coexistence-with-proprietary-nearby.md)
 - [Signing rules](../spec/signing-rules.md)
 - [BLE transport](../spec/ble-transport.md)
+- [Shop-nearby alerts](../spec/proximity-nudge.md)
 - [Unified addon API](../spec/addon-api.md)
 - [Golden conformance fixtures](../tests/fixtures/)
 - [Mock bank server reference](../bank_api/server.py)

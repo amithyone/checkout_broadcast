@@ -555,12 +555,12 @@
           <div class="step reveal d1">
             <span class="num-tile"><i data-lucide="shield-check"></i><span class="num">2</span></span>
             <h3>Bank verifies</h3>
-            <p>The customer's app sends the packet to its bank's <b>/verify-broadcast</b>. The bank checks signature, registry and replay, and returns the merchant.</p>
+            <p>The customer's app lists only the tills in range of the phone, and the customer taps theirs. The app sends that packet to its bank's <b>/verify-broadcast</b>. The bank checks signature, registry and replay, and returns the merchant.</p>
           </div>
           <div class="step reveal d2">
             <span class="num-tile"><i data-lucide="circle-check-big"></i><span class="num">3</span></span>
             <h3>Customer confirms</h3>
-            <p>The transfer opens pre-filled with a locked amount. The customer confirms with their PIN and the bank sends a normal transfer.</p>
+            <p>The transfer opens pre-filled with a locked amount and the verified shop name. Nothing is picked or paid automatically: the customer confirms with their PIN and the bank sends a normal transfer.</p>
           </div>
         </div>
       </section>
@@ -639,8 +639,8 @@
           <div class="glass strong status-list reveal d1">
             <div class="status-row"><span class="tile" style="background:#3776ab"><i data-lucide="terminal"></i></span><div class="meta"><b>Python SDK</b><span>Windows / Linux POS · send and receive</span></div><span class="badge ready">Ready</span></div>
             <div class="status-row"><span class="tile" style="background:#3178c6"><i data-lucide="globe"></i></span><div class="meta"><b>TypeScript SDK</b><span>Web Bluetooth receive</span></div><span class="badge ready">Ready</span></div>
-            <div class="status-row"><span class="tile" style="background:#16a34a"><i data-lucide="smartphone"></i></span><div class="meta"><b>Android module</b><span>Receive ready, reads Cheko tills · POS send planned</span></div><span class="badge wip">Receive</span></div>
-            <div class="status-row"><span class="tile" style="background:#111827"><i data-lucide="smartphone"></i></span><div class="meta"><b>iOS Swift Package</b><span>Receive ready, reads Cheko tills</span></div><span class="badge wip">Receive</span></div>
+            <div class="status-row"><span class="tile" style="background:#16a34a"><i data-lucide="smartphone"></i></span><div class="meta"><b>Android module</b><span>Receive · in-range list · shop-nearby scanner · POS send planned</span></div><span class="badge wip">Receive</span></div>
+            <div class="status-row"><span class="tile" style="background:#111827"><i data-lucide="smartphone"></i></span><div class="meta"><b>iOS Swift Package</b><span>Receive · in-range list · reads Cheko tills</span></div><span class="badge wip">Receive</span></div>
             <div class="status-row"><span class="tile" style="background:#059669"><i data-lucide="server"></i></span><div class="meta"><b>Reference bank API</b><span>FastAPI · any-language verify contract</span></div><span class="badge ready">Ready</span></div>
             <div class="status-row"><span class="tile" style="background:#ef4444"><i data-lucide="code"></i></span><div class="meta"><b>Laravel verify example</b><span>CheckoutPay drop-in · same JSON as Python</span></div><span class="badge prod">Production</span></div>
           </div>
@@ -728,7 +728,9 @@
     var FAQS = [
       ['Is this a new payment rail?', 'No. Checkout Broadcast only starts the transfer. The payment itself is a normal bank transfer over NIP, using the session ID as the idempotency key so retries never double-charge.'],
       ['How is it secure if anyone nearby can read the broadcast?', 'Packets are signed, not secret. They carry only a masked account suffix. The till signs with Ed25519, the bank checks the signature against its terminal registry, and each checkout session can only be used once. A fake till, a changed amount, or a replayed packet all fail verification. If someone already enrolled a real POS and broadcasts next to another shop, the bank still shows their enrolled shop name — the customer must confirm that name before paying. You cannot stop them from trying. Bank mobile apps must only receive; they must not broadcast. Only POS terminal apps send.'],
-      ['Does it work on iPhone?', 'Yes. iOS limits Bluetooth scanning in the background, so the customer should have the banking app open, for example on a "Pay at shop" screen. Android can also scan from a foreground service.'],
+      ['Does it work on iPhone?', 'Yes. iOS limits Bluetooth scanning in the background, so the customer opens the banking app on its "Pay at shop" screen, which lists only the tills in range. Android can also listen from a foreground service for shop-nearby alerts.'],
+      ['How do customers know a shop accepts it?', 'On Android, the bank app can listen quietly in low-power mode. When the phone is near a till it tells the bank, and the bank pushes "MIDAS AGRO is open — tap to pay". Tapping opens the list of tills in range; the customer still picks their till and confirms with PIN. On iPhone the bank can still push, and customers open Pay at shop at the counter.'],
+      ['What if two tills are side by side?', 'The phone smooths the Bluetooth signal and lists only the tills that are close, strongest first. Adjacent tills both show up, so the customer picks theirs and sees the bank-verified shop name before paying. It never auto-selects a till by signal strength.'],
       ['How is it different from NQR?', 'Both start a merchant transfer with the amount set by the till. NQR needs a camera and a printed or displayed code; Checkout Broadcast works by proximity with no code at all. Banks can support both.'],
       ['What does it cost?', 'Nothing. It is MIT licensed. Banks, wallets and POS makers can use, modify and ship it without fees.'],
       ['How do we start a pilot?', 'Open a discussion on GitHub or email the maintainer. A typical pilot is one bank or wallet plus a handful of merchants on one POS model.'],

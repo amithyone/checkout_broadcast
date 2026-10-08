@@ -1,6 +1,6 @@
 {
   "name": "@checkout-broadcast/web",
-  "version": "1.4.4",
+  "version": "1.5.0",
   "description": "Checkout Broadcast web SDK — receive signed POS payment broadcasts in banking apps",
   "license": "MIT",
   "type": "module",

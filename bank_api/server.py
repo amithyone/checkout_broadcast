@@ -119,7 +119,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Checkout Broadcast Reference Bank API",
     description="Reference verification server for banks testing Checkout Broadcast integration.",
-    version="1.4.4",
+    version="1.5.0",
     lifespan=lifespan,
 )
 

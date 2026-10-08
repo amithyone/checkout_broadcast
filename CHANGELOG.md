@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.0] - 2026-10-08
+
+Phones now list only the tills in range, and banks can add optional "shop nearby" alerts. No change to the packet format, signing, verify endpoint, or tills.
+
+### Added
+- **Proximity filtering** ([spec/ble-transport.md](spec/ble-transport.md#proximity-filtering-optional-recommended)): smooth RSSI per till (EMA, α 0.3); list a till when it is ≥ −75 dBm and within 12 dB of the strongest; hide it only after 3 s well below (5 dB hysteresis); drop it after 10 s unheard. Push-named tills are listed first. Receivers **must never auto-select or auto-pay** on proximity. Optional advert Tx Power advice for tills (not in the signed packet).
+- Python `checkout_broadcast.proximity.TillProximityFilter`, Android `TillProximity`, iOS `TillProximity`, with shared vectors in `tests/fixtures/proximity_vectors.json`.
+- Android `BleCheckoutReceiver` / iOS `CheckoutBleReceiver` feed every advert's RSSI into `proximity`, skip the GATT read for tills below −90 dBm, and fire `onTillsChanged` about once a second. The addons expose `onTillsUpdated`, `tills()` and `preferredTerminalId`.
+- **Shop-nearby alerts** ([spec/proximity-nudge.md](spec/proximity-nudge.md)): `POST /broadcast/proximity` contract, server debounce, and phone battery rules. Taps open the till list; never auto-select.
+- Android `ShopNearbyScanner` (low-power, filtered, batched, rate-limited: once per till per 3 min, 10 per hour; no networking) and `ShopNearbyRateLimiter` with tests.
+
+### Changed
+- Banking app guide: in-range list, "Move closer to the till" / "Show farther tills (N)", push-named till listed first instead of auto-selected; Kotlin example builds a list.
+- Landing page: how it works, iPhone FAQ, new FAQs on shop-nearby alerts and side-by-side tills, Android/iOS status rows.
+
 ## [1.4.4] - 2026-10-08
 
 ### Changed
