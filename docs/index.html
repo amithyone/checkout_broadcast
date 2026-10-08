@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Checkout Broadcast — open protocol for tap-free POS payments in Nigeria</title>
+  <meta name="description" content="Open-source SDK and protocol: a shop till broadcasts a signed payment request over Bluetooth LE and the customer's banking app pre-fills the transfer. No typing account numbers, no scanning." />
+  <meta property="og:title" content="Checkout Broadcast" />
+  <meta property="og:description" content="Open protocol for POS-to-banking-app payments in Nigeria. Signed by the till, verified by the bank, paid over existing rails." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://amithyone.github.io/checkout_broadcast/" />
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: rgba(255, 255, 255, 0.06);
+      --border: rgba(255, 255, 255, 0.12);
+      --text: #eef1f8;
+      --muted: #a7b0c6;
+      --accent: #22c55e;
+      --accent-2: #7c5cff;
+      --radius: 20px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    .orb { position: fixed; border-radius: 50%; filter: blur(90px); opacity: 0.35; z-index: -1; }
+    .orb.a { width: 520px; height: 520px; background: var(--accent-2); top: -160px; right: -140px; }
+    .orb.b { width: 460px; height: 460px; background: var(--accent); bottom: -180px; left: -160px; opacity: 0.22; }
+    a { color: inherit; }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 22px; }
+    nav { display: flex; justify-content: space-between; align-items: center; padding: 22px 0; }
+    nav .brand { font-weight: 800; letter-spacing: -0.02em; text-decoration: none; }
+    nav .links a { color: var(--muted); text-decoration: none; margin-left: 20px; font-size: 15px; }
+    nav .links a:hover { color: var(--text); }
+    header { padding: 56px 0 40px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: 0.14em; font-size: 12px; color: var(--accent); font-weight: 700; }
+    h1 { font-size: clamp(34px, 6vw, 58px); line-height: 1.06; letter-spacing: -0.03em; margin: 14px 0 18px; }
+    h2 { font-size: clamp(26px, 4vw, 36px); letter-spacing: -0.02em; margin: 0 0 14px; }
+    h3 { margin: 0 0 8px; font-size: 19px; }
+    .lead { font-size: 19px; color: var(--muted); max-width: 680px; }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+    .btn { display: inline-block; padding: 13px 22px; border-radius: 999px; font-weight: 700; text-decoration: none; border: 1px solid var(--border); }
+    .btn.primary { background: var(--accent); color: #05210f; border-color: transparent; }
+    .btn.ghost { background: var(--panel); backdrop-filter: blur(12px); }
+    section { padding: 48px 0; }
+    .grid { display: grid; gap: 16px; }
+    .grid.three { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; backdrop-filter: blur(14px); }
+    .card p { color: var(--muted); margin: 0; }
+    .step { font-size: 13px; font-weight: 800; color: var(--accent); letter-spacing: 0.1em; }
+    table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; }
+    tr.us td { color: var(--text); font-weight: 700; }
+    td { color: var(--muted); }
+    .table-scroll { overflow-x: auto; }
+    .yes { color: var(--accent); font-weight: 700; }
+    code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 6px; font-size: 0.92em; }
+    ul.clean { margin: 0; padding-left: 18px; color: var(--muted); }
+    ul.clean li { margin-bottom: 6px; }
+    footer { padding: 40px 0 60px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); margin-top: 32px; }
+    @media (max-width: 640px) { nav .links a:not(.gh) { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="orb a"></div>
+  <div class="orb b"></div>
+
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="./">Checkout Broadcast</a>
+      <div class="links">
+        <a href="#how">How it works</a>
+        <a href="#why">Why</a>
+        <a href="#integrate">Integrate</a>
+        <a class="gh" href="https://github.com/amithyone/checkout_broadcast">GitHub</a>
+      </div>
+    </nav>
+
+    <header>
+      <div class="eyebrow">Open source · MIT · Built in Nigeria</div>
+      <h1>Pay at the counter without typing an account number.</h1>
+      <p class="lead">
+        Checkout Broadcast is an open protocol and SDK. The shop's till broadcasts a <strong>signed payment request</strong>
+        over Bluetooth LE, the customer's banking app verifies it with the bank, and the transfer screen is
+        <strong>pre-filled with the right merchant and amount</strong>. The money still moves over the rails banks already use.
+      </p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/amithyone/checkout_broadcast">View on GitHub</a>
+        <a class="btn ghost" href="https://github.com/amithyone/checkout_broadcast/blob/main/spec/ble-transport.md">Read the spec</a>
+        <a class="btn ghost" href="https://github.com/amithyone/checkout_broadcast/discussions">Talk to us</a>
+      </div>
+    </header>
+
+    <section id="how">
+      <h2>How it works</h2>
+      <div class="grid three">
+        <div class="card">
+          <div class="step">STEP 1 · TILL</div>
+          <h3>Checkout and broadcast</h3>
+          <p>The POS totals the sale, signs terminal ID, amount and a one-time session with its Ed25519 key, and broadcasts it over BLE.</p>
+        </div>
+        <div class="card">
+          <div class="step">STEP 2 · BANK</div>
+          <h3>Verify</h3>
+          <p>The customer's app sends the packet to its bank's <code>/verify-broadcast</code>. The bank checks the signature, terminal registry and replay, and returns the merchant name and account.</p>
+        </div>
+        <div class="card">
+          <div class="step">STEP 3 · CUSTOMER</div>
+          <h3>Confirm and pay</h3>
+          <p>The transfer screen opens pre-filled with a locked amount. The customer confirms with their PIN and the bank sends a normal transfer.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="why">
+      <h2>Why not just a transfer or a QR code?</h2>
+      <div class="card table-scroll">
+        <table>
+          <thead>
+            <tr><th>Method</th><th>Customer effort at the counter</th><th>Amount set by till</th><th>Tamper-proof request</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Manual bank transfer</td><td>Type 10-digit account, pick bank, type amount</td><td>No</td><td>No</td></tr>
+            <tr><td>Dynamic virtual account</td><td>Type a new account number every time</td><td>Partly</td><td>No</td></tr>
+            <tr><td>USSD</td><td>Dial code, step through menus</td><td>No</td><td>No</td></tr>
+            <tr><td>NQR / QR code</td><td>Open scanner, aim at code</td><td>Only with dynamic QR on a screen</td><td>Depends on implementation</td></tr>
+            <tr class="us"><td>Checkout Broadcast</td><td>Open app, tap the shop, confirm</td><td class="yes">Yes</td><td class="yes">Signed by till, verified by bank</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="lead" style="margin-top:18px;font-size:16px">
+        Checkout Broadcast complements NQR and NIP rather than replacing them: it is a better way to <em>start</em> the same transfer.
+      </p>
+    </section>
+
+    <section id="integrate">
+      <h2>Who it's for</h2>
+      <div class="grid three">
+        <div class="card">
+          <h3>Banks and wallets</h3>
+          <ul class="clean">
+            <li>Fewer mistyped transfers and "I've sent it" disputes</li>
+            <li>No new settlement rail to certify</li>
+            <li>Add one verify endpoint and a receive screen</li>
+          </ul>
+          <p style="margin-top:12px"><a href="https://github.com/amithyone/checkout_broadcast/blob/main/docs/banking-app-integration.md">Banking app guide →</a></p>
+        </div>
+        <div class="card">
+          <h3>POS software and PTSPs</h3>
+          <ul class="clean">
+            <li>Small add-on for Android or Windows/Linux POS apps</li>
+            <li>Most modern Android POS terminals already have Bluetooth</li>
+            <li>Python SDK sends today</li>
+          </ul>
+          <p style="margin-top:12px"><a href="https://github.com/amithyone/checkout_broadcast/blob/main/docs/pos-app-integration.md">POS integration guide →</a></p>
+        </div>
+        <div class="card">
+          <h3>POS agents and merchants</h3>
+          <ul class="clean">
+            <li>Shorter queues at busy counters</li>
+            <li>Payments arrive with the exact amount</li>
+            <li>A session reference you can match</li>
+          </ul>
+          <p style="margin-top:12px"><a href="https://github.com/amithyone/checkout_broadcast/discussions">Ask your POS provider to join →</a></p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Status</h2>
+      <div class="card table-scroll">
+        <table>
+          <thead><tr><th>Component</th><th>Send (POS)</th><th>Receive (banking app)</th></tr></thead>
+          <tbody>
+            <tr><td>Python SDK (Windows / Linux POS)</td><td class="yes">Ready</td><td class="yes">Ready</td></tr>
+            <tr><td>TypeScript SDK (web / Node)</td><td>Simulated only</td><td class="yes">Ready (Web Bluetooth)</td></tr>
+            <tr><td>Android module (Kotlin)</td><td>In progress</td><td class="yes">Ready</td></tr>
+            <tr><td>iOS Swift Package</td><td>In progress</td><td class="yes">Ready</td></tr>
+            <tr><td>Reference bank API</td><td>—</td><td class="yes">Ready for testing</td></tr>
+            <tr><td>Laravel verify controller</td><td>—</td><td class="yes">In production</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="lead" style="margin-top:18px;font-size:16px">
+        In production with the <strong>CheckoutNow</strong> wallet app ("Pay at shop") and <strong>Cheko / CheckoutPay</strong> merchant tills.
+      </p>
+    </section>
+
+    <section>
+      <h2>Security in one paragraph</h2>
+      <div class="card">
+        <p>
+          The till signs the expanded payload with Ed25519; the bank stores only the public key. Changing the amount breaks the signature.
+          A fake till fails because its terminal isn't registered. Replayed packets fail because each checkout session UUID is burned after use
+          and stale timestamps are rejected. Packets are signed, not encrypted, so they only carry a masked account suffix. Full threat model in
+          <a href="https://github.com/amithyone/checkout_broadcast/blob/main/SECURITY.md">SECURITY.md</a>.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Bring it to your bank or POS</h2>
+      <p class="lead">Pilots, integration help, or questions — we'd like to hear from bank digital teams, PTSPs, agent networks and POS app makers.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/amithyone/checkout_broadcast/discussions">Start a discussion</a>
+        <a class="btn ghost" href="mailto:amithyone@gmail.com?subject=Checkout%20Broadcast%20pilot">Email the maintainer</a>
+      </div>
+    </section>
+
+    <footer>
+      Checkout Broadcast · MIT License ·
+      <a href="https://github.com/amithyone/checkout_broadcast">github.com/amithyone/checkout_broadcast</a>
+    </footer>
+  </div>
+</body>
+</html>
