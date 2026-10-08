@@ -1,224 +1,762 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="light">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Checkout Broadcast — open protocol for tap-free POS payments in Nigeria</title>
   <meta name="description" content="Open-source SDK and protocol: a shop till broadcasts a signed payment request over Bluetooth LE and the customer's banking app pre-fills the transfer. No typing account numbers, no scanning." />
+  <meta name="theme-color" content="#dceee9" />
   <meta property="og:title" content="Checkout Broadcast" />
   <meta property="og:description" content="Open protocol for POS-to-banking-app payments in Nigeria. Signed by the till, verified by the bank, paid over existing rails." />
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://amithyone.github.io/checkout_broadcast/" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%2320ccb4'/%3E%3Cpath d='M22 24a14 14 0 0 1 0 16M16 18a22 22 0 0 1 0 28' stroke='white' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='38' cy='32' r='7' fill='white'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    (function () {
+      var t = localStorage.getItem('cb-theme');
+      if (t === 'dark') document.documentElement.className = 'dark';
+    })();
+  </script>
   <style>
-    :root {
-      --bg: #0b1020;
-      --panel: rgba(255, 255, 255, 0.06);
-      --border: rgba(255, 255, 255, 0.12);
-      --text: #eef1f8;
-      --muted: #a7b0c6;
-      --accent: #22c55e;
-      --accent-2: #7c5cff;
-      --radius: 20px;
+    :root,
+    html.light {
+      --bg-0: #e8e4de;
+      --bg-grad: linear-gradient(165deg, #dceee9 0%, #e8e4de 46%, #efeae4 100%);
+      --glass-fill: rgba(255, 255, 255, 0.62);
+      --glass-fill-strong: rgba(255, 255, 255, 0.72);
+      --glass-border: rgba(15, 15, 15, 0.10);
+      --nav-fill: rgba(232, 228, 222, 0.70);
+      --well: rgba(0, 0, 0, 0.035);
+      --text: #0a0a0a;
+      --muted: #52525b;
+      --accent: #20ccb4;
+      --accent-2: #3f8a7f;
+      --mint: #4edea3;
+      --accent-gradient: linear-gradient(90deg, #20ccb4 0%, #3f8a7f 100%);
+      --card-shadow: 0 2px 6px rgba(15, 23, 42, 0.06), 0 14px 36px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+      --float-shadow: 0 18px 40px rgba(0, 0, 0, 0.14);
+      --specular: rgba(255, 255, 255, 0.7);
+      --orb-a: rgba(32, 204, 180, 0.38);
+      --orb-b: rgba(255, 255, 255, 0.72);
+      --orb-c: rgba(63, 138, 127, 0.28);
     }
+    html.dark {
+      --bg-0: #050505;
+      --bg-grad: #050505;
+      --glass-fill: rgba(255, 255, 255, 0.06);
+      --glass-fill-strong: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.14);
+      --nav-fill: rgba(8, 8, 8, 0.80);
+      --well: rgba(255, 255, 255, 0.05);
+      --text: #f5f5f5;
+      --muted: #a1a1aa;
+      --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.32), 0 6px 16px rgba(0, 0, 0, 0.36), 0 22px 44px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+      --float-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+      --specular: rgba(255, 255, 255, 0.06);
+      --orb-a: rgba(32, 204, 180, 0.22);
+      --orb-b: rgba(255, 255, 255, 0.04);
+      --orb-c: rgba(63, 138, 127, 0.20);
+    }
+
     * { box-sizing: border-box; }
     html, body { margin: 0; }
+    html { scroll-behavior: smooth; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
-      background: var(--bg);
+      font-family: 'Comfortaa', sans-serif;
+      background: var(--bg-0);
       color: var(--text);
       line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
       overflow-x: hidden;
     }
-    .orb { position: fixed; border-radius: 50%; filter: blur(90px); opacity: 0.35; z-index: -1; }
-    .orb.a { width: 520px; height: 520px; background: var(--accent-2); top: -160px; right: -140px; }
-    .orb.b { width: 460px; height: 460px; background: var(--accent); bottom: -180px; left: -160px; opacity: 0.22; }
-    a { color: inherit; }
-    .wrap { max-width: 1040px; margin: 0 auto; padding: 0 22px; }
-    nav { display: flex; justify-content: space-between; align-items: center; padding: 22px 0; }
-    nav .brand { font-weight: 800; letter-spacing: -0.02em; text-decoration: none; }
-    nav .links a { color: var(--muted); text-decoration: none; margin-left: 20px; font-size: 15px; }
-    nav .links a:hover { color: var(--text); }
-    header { padding: 56px 0 40px; }
-    .eyebrow { text-transform: uppercase; letter-spacing: 0.14em; font-size: 12px; color: var(--accent); font-weight: 700; }
-    h1 { font-size: clamp(34px, 6vw, 58px); line-height: 1.06; letter-spacing: -0.03em; margin: 14px 0 18px; }
-    h2 { font-size: clamp(26px, 4vw, 36px); letter-spacing: -0.02em; margin: 0 0 14px; }
-    h3 { margin: 0 0 8px; font-size: 19px; }
-    .lead { font-size: 19px; color: var(--muted); max-width: 680px; }
-    .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
-    .btn { display: inline-block; padding: 13px 22px; border-radius: 999px; font-weight: 700; text-decoration: none; border: 1px solid var(--border); }
-    .btn.primary { background: var(--accent); color: #05210f; border-color: transparent; }
-    .btn.ghost { background: var(--panel); backdrop-filter: blur(12px); }
-    section { padding: 48px 0; }
-    .grid { display: grid; gap: 16px; }
-    .grid.three { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-    .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; backdrop-filter: blur(14px); }
-    .card p { color: var(--muted); margin: 0; }
-    .step { font-size: 13px; font-weight: 800; color: var(--accent); letter-spacing: 0.1em; }
-    table { width: 100%; border-collapse: collapse; font-size: 15px; }
-    th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; }
-    tr.us td { color: var(--text); font-weight: 700; }
+    a { color: inherit; text-decoration: none; }
+    svg.lucide { width: 1em; height: 1em; stroke-width: 2; flex-shrink: 0; }
+
+    /* Atmosphere */
+    .atmosphere { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; background: var(--bg-grad); }
+    .atmosphere span { position: absolute; border-radius: 50%; filter: blur(8px); will-change: transform; }
+    .atmosphere .o1 { top: -10%; left: -12%; width: 520px; height: 520px; background: radial-gradient(circle, var(--orb-a) 0%, transparent 70%); animation: drift1 18s ease-in-out infinite alternate; }
+    .atmosphere .o2 { top: 6%; left: 42%; width: 420px; height: 420px; background: radial-gradient(circle, var(--orb-b) 0%, transparent 70%); animation: drift2 22s ease-in-out infinite alternate; }
+    .atmosphere .o3 { top: 46%; left: -10%; width: 460px; height: 460px; background: radial-gradient(circle, var(--orb-c) 0%, transparent 72%); animation: drift3 20s ease-in-out infinite alternate; }
+    .atmosphere .o4 { top: 64%; right: -8%; width: 500px; height: 500px; background: radial-gradient(circle, var(--orb-a) 0%, transparent 70%); animation: drift4 24s ease-in-out infinite alternate; }
+    @keyframes drift1 { to { transform: translate(25px, 35px) scale(1.06); } }
+    @keyframes drift2 { to { transform: translate(-30px, 25px) scale(1.05); } }
+    @keyframes drift3 { to { transform: translate(20px, -30px) scale(1.07); } }
+    @keyframes drift4 { to { transform: translate(-20px, -25px) scale(1.04); } }
+
+    .page { position: relative; z-index: 1; }
+    .hero > *, .bento > *, .cards3 > *, .steps > *, .status-grid > *, .faq-grid > *, .final .inner > * { min-width: 0; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+    @media (min-width: 1024px) { .wrap { padding: 0 32px; } }
+
+    /* Glass */
+    .glass {
+      position: relative; overflow: hidden; isolation: isolate;
+      background: var(--glass-fill);
+      border: 1px solid var(--glass-border);
+      border-radius: 28px;
+      backdrop-filter: blur(18px) saturate(140%);
+      -webkit-backdrop-filter: blur(18px) saturate(140%);
+      box-shadow: var(--card-shadow);
+    }
+    .glass::before {
+      content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+      background: radial-gradient(420px circle at 15% 10%, var(--specular), transparent 60%);
+    }
+    .glass.strong { background: var(--glass-fill-strong); }
+    .glow { position: absolute; border-radius: 50%; filter: blur(48px); pointer-events: none; z-index: -1; }
+
+    /* Header */
+    header.top {
+      position: sticky; top: 0; z-index: 50;
+      background: var(--nav-fill);
+      border-bottom: 1px solid var(--glass-border);
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+    }
+    header.top .bar { display: flex; align-items: center; gap: 12px; height: 64px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+    .logo {
+      width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; color: #fff;
+      background: var(--accent-gradient); box-shadow: 0 6px 16px rgba(32, 204, 180, 0.35);
+    }
+    .logo svg { width: 20px; height: 20px; }
+    nav.links { display: none; margin-left: 28px; gap: 4px; }
+    nav.links a { padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted); transition: background .15s, color .15s; }
+    nav.links a:hover { background: var(--well); color: var(--text); }
+    @media (min-width: 1024px) { nav.links { display: flex; } }
+    .bar .right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .icon-btn {
+      width: 36px; height: 36px; border-radius: 999px; display: grid; place-items: center; cursor: pointer;
+      border: 1px solid var(--glass-border); background: transparent; color: var(--text); font-size: 15px;
+    }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 24px;
+      border-radius: 999px; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; border: 0;
+      transition: transform .16s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow .16s;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn:active { transform: scale(0.97); }
+    .btn.primary { background: var(--accent-gradient); color: #fff; box-shadow: 0 10px 24px -6px rgba(32, 204, 180, 0.55); }
+    .btn.ghost { background: var(--glass-fill); color: var(--text); border: 1px solid var(--glass-border); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    .btn.sm { height: 36px; padding: 0 16px; font-size: 13px; }
+    .hide-sm { display: none; }
+    @media (min-width: 640px) { .hide-sm { display: inline-flex; } }
+
+    /* Type */
+    .eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.26em; color: var(--accent); margin: 0; }
+    h1 { font-size: clamp(40px, 6vw, 60px); line-height: 1.04; letter-spacing: -0.03em; margin: 20px 0 0; font-weight: 700; }
+    h2 { font-size: clamp(28px, 4vw, 36px); line-height: 1.12; letter-spacing: -0.02em; margin: 12px 0 0; font-weight: 700; }
+    h3 { font-size: 18px; margin: 16px 0 0; font-weight: 700; }
+    .grad-text { background: linear-gradient(90deg, var(--accent), var(--mint), #059669); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .lead { font-size: 17px; color: var(--muted); max-width: 580px; margin: 20px 0 0; }
+    .body { font-size: 14px; color: var(--muted); margin: 8px 0 0; }
+    .section-head { max-width: 680px; }
+    .section-head.center { margin: 0 auto; text-align: center; }
+    .section-head p.body { font-size: 15px; margin-top: 12px; }
+    section { padding: 56px 0; scroll-margin-top: 80px; }
+    @media (min-width: 1024px) { section { padding: 80px 0; } }
+
+    /* Hero */
+    .hero { display: grid; gap: 40px; align-items: center; padding: 40px 0 48px; }
+    @media (min-width: 1024px) { .hero { grid-template-columns: 1.05fr 1fr; gap: 48px; padding: 64px 0 80px; } }
+    .chip {
+      display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; border: 1px solid var(--glass-border); background: var(--glass-fill);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    }
+    .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--accent); }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+    .trust { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 32px; font-size: 12px; color: var(--muted); }
+    .trust span { display: inline-flex; align-items: center; gap: 6px; }
+    .trust svg { color: var(--accent); font-size: 14px; }
+
+    /* Hero art */
+    .art { position: relative; width: 100%; max-width: 520px; aspect-ratio: 1; margin: 0 auto; }
+    .art .grid-bg {
+      position: absolute; inset: 0; opacity: 0.14; color: var(--accent);
+      -webkit-mask-image: radial-gradient(circle at 50% 45%, #000 0%, transparent 65%);
+      mask-image: radial-gradient(circle at 50% 45%, #000 0%, transparent 65%);
+      background-image: linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+    .art .rings { position: absolute; inset: 6%; color: var(--accent); }
+    .art .rings circle { animation: pulse-ring 3.2s ease-out infinite; transform-origin: 200px 200px; }
+    .art .rings circle:nth-child(2) { animation-delay: 1.1s; }
+    .art .rings circle:nth-child(3) { animation-delay: 2.2s; }
+    @keyframes pulse-ring { 0% { opacity: 0.35; transform: scale(0.55); } 100% { opacity: 0; transform: scale(1.05); } }
+    .art .orb { position: absolute; border-radius: 50%; filter: blur(48px); animation: orb 14s ease-in-out infinite alternate; }
+    @keyframes orb { to { transform: translate3d(24px, -18px, 0) scale(1.08); } }
+    .float-card {
+      position: absolute; border-radius: 22px; border: 1px solid rgba(255, 255, 255, 0.45);
+      background: rgba(255, 255, 255, 0.78); box-shadow: var(--float-shadow);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    }
+    html.dark .float-card { border-color: rgba(255, 255, 255, 0.10); background: rgba(18, 26, 23, 0.82); }
+    .floaty { animation: float 6s ease-in-out infinite; }
+    .floaty.d1 { animation-delay: -2s; animation-duration: 7s; }
+    .floaty.d2 { animation-delay: -4s; animation-duration: 8s; }
+    @keyframes float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -10px; } }
+    .phone { left: 50%; top: 50%; width: 64%; transform: translate(-50%, -50%); padding: 16px; }
+    @media (max-width: 640px) { .art { aspect-ratio: 4 / 5; } .phone { width: 84%; } }
+    .phone .head { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; }
+    .phone .head .logo { width: 26px; height: 26px; border-radius: 9px; }
+    .phone .head .logo svg { width: 15px; height: 15px; }
+    .pill { margin-left: auto; padding: 2px 8px; border-radius: 999px; font-size: 9px; font-weight: 700; color: var(--accent); background: rgba(32, 204, 180, 0.14); display: inline-flex; align-items: center; gap: 4px; }
+    .pill .live { width: 5px; height: 5px; border-radius: 9px; background: var(--accent); animation: blink 1.4s ease-in-out infinite; }
+    @keyframes blink { 50% { opacity: 0.25; } }
+    .rows { margin-top: 12px; display: grid; gap: 8px; }
+    .row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 16px; background: var(--well); }
+    .row.selected { outline: 1.5px solid rgba(32, 204, 180, 0.55); background: rgba(32, 204, 180, 0.08); }
+    .tile { width: 30px; height: 30px; border-radius: 30%; display: grid; place-items: center; color: #fff; font-size: 15px; box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18); flex-shrink: 0; }
+    .row .meta { flex: 1; min-width: 0; }
+    .row .name { font-size: 11px; font-weight: 700; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row .sub { font-size: 9px; color: var(--muted); margin: 0; display: flex; align-items: center; gap: 4px; }
+    .row .sub svg { color: var(--accent); }
+    .row .amt { font-size: 11px; font-weight: 700; }
+    .phone .pay { margin-top: 12px; height: 34px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; background: var(--accent-gradient); }
+    .note { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+    .note .ic { width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; font-size: 16px; }
+    .note p { margin: 0; }
+    .note .t { font-size: 11px; font-weight: 700; }
+    .note .s { font-size: 9px; color: var(--muted); }
+
+    /* Marquee */
+    .marquee { position: relative; overflow: hidden; padding: 16px 0; margin: 0 -20px;
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+      mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
+    .marquee .track { display: flex; gap: 12px; width: max-content; animation: marquee 38s linear infinite; }
+    .marquee:hover .track { animation-play-state: paused; }
+    @keyframes marquee { to { transform: translateX(calc(-50% - 6px)); } }
+    .tag { display: inline-flex; align-items: center; gap: 10px; padding: 8px 16px 8px 8px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+
+    /* Bento */
+    .bento { display: grid; gap: 16px; margin-top: 40px; }
+    @media (min-width: 1024px) { .bento { grid-template-columns: repeat(3, 1fr); } .span2 { grid-column: span 2; } }
+    .bento .glass { padding: 24px; }
+    @media (min-width: 1024px) { .bento .glass { padding: 32px; } }
+    .ic-box { width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; font-size: 22px; }
+    .ic-teal { background: rgba(32, 204, 180, 0.12); color: var(--accent); }
+    .ic-sky { background: rgba(14, 165, 233, 0.12); color: #0284c7; }
+    .ic-amber { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+    .ic-emerald { background: rgba(16, 185, 129, 0.12); color: #059669; }
+    html.dark .ic-sky { color: #7dd3fc; } html.dark .ic-amber { color: #fcd34d; } html.dark .ic-emerald { color: #6ee7b7; }
+    .split { display: flex; flex-direction: column; gap: 24px; }
+    @media (min-width: 1024px) { .split { flex-direction: row; align-items: center; } .split > :first-child { flex: 1; } }
+    .mini-steps { display: grid; gap: 8px; min-width: 240px; }
+    .mini-steps div { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 16px; background: var(--well); font-size: 13px; font-weight: 700; }
+    .mini-steps .x { color: #dc2626; } .mini-steps .ok { color: var(--accent); }
+
+    /* Compare table */
+    .table-card { margin-top: 40px; padding: 8px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 640px; }
+    th, td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--glass-border); vertical-align: top; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 700; }
     td { color: var(--muted); }
-    .table-scroll { overflow-x: auto; }
-    .yes { color: var(--accent); font-weight: 700; }
-    code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 6px; font-size: 0.92em; }
-    ul.clean { margin: 0; padding-left: 18px; color: var(--muted); }
-    ul.clean li { margin-bottom: 6px; }
-    footer { padding: 40px 0 60px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); margin-top: 32px; }
-    @media (max-width: 640px) { nav .links a:not(.gh) { display: none; } }
+    tr:last-child td { border-bottom: 0; }
+    tr.us td { color: var(--text); font-weight: 700; background: rgba(32, 204, 180, 0.08); }
+    tr.us td:first-child { border-radius: 16px 0 0 16px; } tr.us td:last-child { border-radius: 0 16px 16px 0; }
+    .yes { color: var(--accent) !important; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+    .no { opacity: 0.75; }
+
+    /* Audience cards */
+    .cards3 { display: grid; gap: 16px; margin-top: 40px; }
+    @media (min-width: 900px) { .cards3 { grid-template-columns: repeat(3, 1fr); } }
+    .aud { padding: 24px; transition: transform .2s; }
+    .aud:hover { transform: translateY(-4px); }
+    .aud .top { display: flex; justify-content: space-between; align-items: flex-start; }
+    .aud .arrow { width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--glass-border); display: grid; place-items: center; font-size: 15px; transition: transform .2s; }
+    .aud:hover .arrow { transform: translate(2px, -2px); }
+    .aud ul { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
+    .aud li { display: flex; gap: 8px; font-size: 13px; color: var(--muted); }
+    .aud li svg { color: var(--accent); margin-top: 3px; font-size: 14px; }
+    .aud .more { margin-top: 16px; font-size: 12px; font-weight: 700; color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
+
+    /* Steps */
+    .steps { position: relative; display: grid; gap: 28px; margin-top: 48px; }
+    @media (min-width: 1024px) { .steps { grid-template-columns: repeat(3, 1fr); } }
+    .steps .line { display: none; position: absolute; left: 16%; right: 16%; top: 32px; height: 1px; background: linear-gradient(90deg, transparent, rgba(32, 204, 180, 0.5), transparent); }
+    @media (min-width: 1024px) { .steps .line { display: block; } }
+    .step { text-align: center; position: relative; }
+    .step .num-tile { position: relative; margin: 0 auto; width: 64px; height: 64px; border-radius: 22px; display: grid; place-items: center; color: #fff; font-size: 24px; background: var(--accent-gradient); box-shadow: 0 12px 28px -6px rgba(32, 204, 180, 0.55); }
+    .step .num { position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--accent); background: var(--bg-0); box-shadow: 0 0 0 2px var(--accent); }
+    .step h3 { margin-top: 20px; font-size: 17px; }
+    .step p { max-width: 300px; margin: 8px auto 0; font-size: 13px; color: var(--muted); }
+
+    /* Status */
+    .status-grid { display: grid; gap: 40px; align-items: center; }
+    @media (min-width: 1024px) { .status-grid { grid-template-columns: 0.9fr 1.1fr; gap: 64px; } }
+    .status-list { padding: 8px; }
+    .status-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--glass-border); }
+    .status-row:last-child { border-bottom: 0; }
+    .status-row .tile { width: 38px; height: 38px; font-size: 17px; }
+    .status-row .meta { flex: 1; min-width: 0; }
+    .status-row .meta b { display: block; font-size: 14px; }
+    .status-row .meta span { font-size: 12px; color: var(--muted); }
+    .badge { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .badge.ready { background: rgba(32, 204, 180, 0.14); color: var(--accent); }
+    .badge.prod { background: rgba(16, 185, 129, 0.16); color: #059669; }
+    .badge.wip { background: rgba(245, 158, 11, 0.14); color: #d97706; }
+    html.dark .badge.prod { color: #6ee7b7; } html.dark .badge.wip { color: #fcd34d; }
+    .adopters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+    .adopters span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+    .adopters svg { color: var(--accent); }
+
+    /* FAQ */
+    .faq-grid { display: grid; gap: 40px; }
+    @media (min-width: 1024px) { .faq-grid { grid-template-columns: 0.9fr 1.1fr; gap: 64px; } }
+    .faq { display: grid; gap: 12px; }
+    .faq .item { border-radius: 22px; }
+    .faq button { width: 100%; display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: none; border: 0; text-align: left; cursor: pointer; font-family: inherit; color: var(--text); font-size: 15px; font-weight: 700; }
+    .faq button span:first-child { flex: 1; }
+    .faq .plus { width: 32px; height: 32px; border-radius: 999px; display: grid; place-items: center; color: var(--accent); background: rgba(32, 204, 180, 0.12); transition: transform .3s; flex-shrink: 0; }
+    .faq .item.open .plus { transform: rotate(45deg); }
+    .faq .ans { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s ease-in-out; }
+    .faq .item.open .ans { grid-template-rows: 1fr; }
+    .faq .ans p { overflow: hidden; margin: 0; padding: 0 20px; font-size: 13px; color: var(--muted); }
+    .faq .item.open .ans p { padding-bottom: 16px; }
+
+    /* Final CTA */
+    .final { position: relative; overflow: hidden; border-radius: 32px; padding: 32px; color: #fff;
+      background: linear-gradient(135deg, #20ccb4 0%, #059669 55%, #065f46 100%);
+      box-shadow: 0 30px 60px rgba(16, 120, 90, 0.35); }
+    @media (min-width: 1024px) { .final { padding: 56px; } }
+    .final .inner { position: relative; display: grid; gap: 40px; align-items: center; }
+    @media (min-width: 1024px) { .final .inner { grid-template-columns: 1.3fr 1fr; } }
+    .final .eyebrow { color: rgba(255, 255, 255, 0.75); }
+    .final h2 { font-size: clamp(30px, 4vw, 40px); }
+    .final p.lead { color: rgba(255, 255, 255, 0.86); }
+    .btn.white { background: #fff; color: #047857; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15); }
+    .btn.outline { background: transparent; color: #fff; border: 1px solid rgba(255, 255, 255, 0.45); }
+    .btn.outline:hover { background: rgba(255, 255, 255, 0.10); }
+    .final-art { position: relative; width: 100%; max-width: 280px; aspect-ratio: 1; margin: 0 auto; display: grid; place-items: center; }
+    .final-art svg.circles { position: absolute; inset: 0; color: #fff; }
+    .final-art .center { width: 96px; height: 96px; border-radius: 30px; background: rgba(255, 255, 255, 0.95); display: grid; place-items: center; color: #059669; font-size: 44px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25); }
+    .final-art .tile { position: absolute; width: 40px; height: 40px; font-size: 19px; }
+
+    footer { border-top: 1px solid var(--glass-border); padding: 32px 0 48px; font-size: 13px; color: var(--muted); }
+    footer .row-f { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; justify-content: space-between; }
+    footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+    footer a:hover { color: var(--text); }
+
+    /* Reveal */
+    .reveal { opacity: 0; transform: translateY(22px); transition: opacity .8s cubic-bezier(0.4, 0, 0.2, 1), transform .8s cubic-bezier(0.4, 0, 0.2, 1); }
+    .reveal.in { opacity: 1; transform: none; }
+    .d1 { transition-delay: .12s; } .d2 { transition-delay: .24s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .reveal { opacity: 1; transform: none; }
+    }
   </style>
 </head>
 <body>
-  <div class="orb a"></div>
-  <div class="orb b"></div>
+  <div class="atmosphere" aria-hidden="true"><span class="o1"></span><span class="o2"></span><span class="o3"></span><span class="o4"></span></div>
 
-  <div class="wrap">
-    <nav>
-      <a class="brand" href="./">Checkout Broadcast</a>
-      <div class="links">
-        <a href="#how">How it works</a>
-        <a href="#why">Why</a>
-        <a href="#integrate">Integrate</a>
-        <a class="gh" href="https://github.com/amithyone/checkout_broadcast">GitHub</a>
-      </div>
-    </nav>
-
-    <header>
-      <div class="eyebrow">Open source · MIT · Built in Nigeria</div>
-      <h1>Pay at the counter without typing an account number.</h1>
-      <p class="lead">
-        Checkout Broadcast is an open protocol and SDK. The shop's till broadcasts a <strong>signed payment request</strong>
-        over Bluetooth LE, the customer's banking app verifies it with the bank, and the transfer screen is
-        <strong>pre-filled with the right merchant and amount</strong>. The money still moves over the rails banks already use.
-      </p>
-      <div class="cta">
-        <a class="btn primary" href="https://github.com/amithyone/checkout_broadcast">View on GitHub</a>
-        <a class="btn ghost" href="https://github.com/amithyone/checkout_broadcast/blob/main/spec/ble-transport.md">Read the spec</a>
-        <a class="btn ghost" href="https://github.com/amithyone/checkout_broadcast/discussions">Talk to us</a>
+  <div class="page">
+    <header class="top">
+      <div class="wrap bar">
+        <a class="brand" href="#top">
+          <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7.5 8a6 6 0 0 1 0 8"/><path d="M4.5 5a10 10 0 0 1 0 14"/><circle cx="14.5" cy="12" r="3" fill="currentColor" stroke="none"/></svg></span>
+          Checkout Broadcast
+        </a>
+        <nav class="links" aria-label="Sections">
+          <a href="#why">Why</a>
+          <a href="#how">How it works</a>
+          <a href="#who">Who it's for</a>
+          <a href="#status">Status</a>
+          <a href="#faq">FAQ</a>
+        </nav>
+        <div class="right">
+          <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle theme"><i data-lucide="moon"></i></button>
+          <a class="btn sm ghost hide-sm" href="https://github.com/amithyone/checkout_broadcast/blob/main/spec/ble-transport.md">Read the spec</a>
+          <a class="btn sm primary" href="https://github.com/amithyone/checkout_broadcast">GitHub</a>
+        </div>
       </div>
     </header>
 
-    <section id="how">
-      <h2>How it works</h2>
-      <div class="grid three">
-        <div class="card">
-          <div class="step">STEP 1 · TILL</div>
-          <h3>Checkout and broadcast</h3>
-          <p>The POS totals the sale, signs terminal ID, amount and a one-time session with its Ed25519 key, and broadcasts it over BLE.</p>
+    <main class="wrap" id="top">
+      <!-- Hero -->
+      <div class="hero">
+        <div class="reveal">
+          <span class="chip"><span class="dot"></span>Open source · MIT · Built in Nigeria</span>
+          <h1>Pay at the counter. <span class="grad-text">No account typing.</span></h1>
+          <p class="lead">
+            The shop's till broadcasts a signed payment request over Bluetooth. The customer's banking app verifies it with the bank
+            and opens the transfer already filled with the right merchant and amount. The money still moves over NIP.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="https://github.com/amithyone/checkout_broadcast">View on GitHub <i data-lucide="arrow-right"></i></a>
+            <a class="btn ghost" href="https://github.com/amithyone/checkout_broadcast/blob/main/docs/one-pager.md">One-page overview</a>
+          </div>
+          <div class="trust">
+            <span><i data-lucide="key-round"></i>Signed by the till</span>
+            <span><i data-lucide="landmark"></i>Verified by the bank</span>
+            <span><i data-lucide="zap"></i>Paid over NIP</span>
+          </div>
         </div>
-        <div class="card">
-          <div class="step">STEP 2 · BANK</div>
-          <h3>Verify</h3>
-          <p>The customer's app sends the packet to its bank's <code>/verify-broadcast</code>. The bank checks the signature, terminal registry and replay, and returns the merchant name and account.</p>
-        </div>
-        <div class="card">
-          <div class="step">STEP 3 · CUSTOMER</div>
-          <h3>Confirm and pay</h3>
-          <p>The transfer screen opens pre-filled with a locked amount. The customer confirms with their PIN and the bank sends a normal transfer.</p>
-        </div>
-      </div>
-    </section>
 
-    <section id="why">
-      <h2>Why not just a transfer or a QR code?</h2>
-      <div class="card table-scroll">
-        <table>
-          <thead>
-            <tr><th>Method</th><th>Customer effort at the counter</th><th>Amount set by till</th><th>Tamper-proof request</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>Manual bank transfer</td><td>Type 10-digit account, pick bank, type amount</td><td>No</td><td>No</td></tr>
-            <tr><td>Dynamic virtual account</td><td>Type a new account number every time</td><td>Partly</td><td>No</td></tr>
-            <tr><td>USSD</td><td>Dial code, step through menus</td><td>No</td><td>No</td></tr>
-            <tr><td>NQR / QR code</td><td>Open scanner, aim at code</td><td>Only with dynamic QR on a screen</td><td>Depends on implementation</td></tr>
-            <tr class="us"><td>Checkout Broadcast</td><td>Open app, tap the shop, confirm</td><td class="yes">Yes</td><td class="yes">Signed by till, verified by bank</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="lead" style="margin-top:18px;font-size:16px">
-        Checkout Broadcast complements NQR and NIP rather than replacing them: it is a better way to <em>start</em> the same transfer.
-      </p>
-    </section>
+        <div class="reveal d1">
+          <div class="art" role="img" aria-label="Banking app showing nearby shop tills with pre-filled amounts">
+            <div class="grid-bg"></div>
+            <span class="orb" style="left:12%;top:14%;width:190px;height:190px;background:rgba(32,204,180,0.30)"></span>
+            <span class="orb" style="right:8%;bottom:10%;width:170px;height:170px;background:rgba(78,222,163,0.25);animation-direction:alternate-reverse;animation-duration:18s"></span>
+            <svg class="rings" viewBox="0 0 400 400" aria-hidden="true">
+              <circle cx="200" cy="200" r="190" fill="none" stroke="currentColor" stroke-width="1.5" />
+              <circle cx="200" cy="200" r="190" fill="none" stroke="currentColor" stroke-width="1.5" />
+              <circle cx="200" cy="200" r="190" fill="none" stroke="currentColor" stroke-width="1.5" />
+            </svg>
 
-    <section id="integrate">
-      <h2>Who it's for</h2>
-      <div class="grid three">
-        <div class="card">
-          <h3>Banks and wallets</h3>
-          <ul class="clean">
-            <li>Fewer mistyped transfers and "I've sent it" disputes</li>
-            <li>No new settlement rail to certify</li>
-            <li>Add one verify endpoint and a receive screen</li>
-          </ul>
-          <p style="margin-top:12px"><a href="https://github.com/amithyone/checkout_broadcast/blob/main/docs/banking-app-integration.md">Banking app guide →</a></p>
+            <div class="float-card phone">
+              <div class="floaty">
+                <div class="head">
+                  <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7.5 8a6 6 0 0 1 0 8"/><path d="M4.5 5a10 10 0 0 1 0 14"/><circle cx="14.5" cy="12" r="3" fill="currentColor" stroke="none"/></svg></span>
+                  Pay at shop
+                  <span class="pill"><span class="live"></span>Listening</span>
+                </div>
+                <div class="rows">
+                  <div class="row selected">
+                    <span class="tile" style="background:linear-gradient(135deg,#20ccb4,#3f8a7f)"><i data-lucide="store"></i></span>
+                    <div class="meta"><p class="name">Mama Ngozi Kitchen</p><p class="sub"><i data-lucide="badge-check"></i>Terminal 3 · verified</p></div>
+                    <span class="amt">₦2,500</span>
+                  </div>
+                  <div class="row">
+                    <span class="tile" style="background:#0ea5e9"><i data-lucide="pill"></i></span>
+                    <div class="meta"><p class="name">Ade Pharmacy</p><p class="sub"><i data-lucide="badge-check"></i>Terminal 1 · verified</p></div>
+                    <span class="amt" style="color:var(--muted);font-size:10px">Enter amount</span>
+                  </div>
+                  <div class="row">
+                    <span class="tile" style="background:#f59e0b"><i data-lucide="shopping-basket"></i></span>
+                    <div class="meta"><p class="name">Chidi Supermart</p><p class="sub"><i data-lucide="badge-check"></i>Till 2 · verified</p></div>
+                    <span class="amt">₦8,150</span>
+                  </div>
+                </div>
+                <div class="pay">Confirm ₦2,500 with PIN</div>
+              </div>
+            </div>
+
+            <div class="float-card note floaty d1" style="right:0;top:9%">
+              <span class="ic" style="background:rgba(16,185,129,0.15);color:#059669"><i data-lucide="shield-check"></i></span>
+              <div><p class="t">Signature verified</p><p class="s">Ed25519 · bank checked</p></div>
+            </div>
+            <div class="float-card note floaty d2" style="left:0;bottom:9%">
+              <span class="ic" style="background:rgba(32,204,180,0.15);color:var(--accent)"><i data-lucide="bluetooth"></i></span>
+              <div><p class="t">Till broadcasting</p><p class="s">BLE · one-time session</p></div>
+            </div>
+            <span class="tile floaty d1" style="position:absolute;left:5%;top:22%;width:40px;height:40px;background:#7c3aed;font-size:19px"><i data-lucide="landmark"></i></span>
+            <span class="tile floaty d2" style="position:absolute;right:6%;bottom:30%;width:36px;height:36px;background:#0f172a;font-size:17px"><i data-lucide="credit-card"></i></span>
+            <span class="tile floaty" style="position:absolute;left:22%;bottom:1%;width:32px;height:32px;background:#16a34a;font-size:15px"><i data-lucide="smartphone"></i></span>
+          </div>
         </div>
-        <div class="card">
-          <h3>POS software and PTSPs</h3>
-          <ul class="clean">
-            <li>Small add-on for Android or Windows/Linux POS apps</li>
-            <li>Most modern Android POS terminals already have Bluetooth</li>
-            <li>Python SDK sends today</li>
-          </ul>
-          <p style="margin-top:12px"><a href="https://github.com/amithyone/checkout_broadcast/blob/main/docs/pos-app-integration.md">POS integration guide →</a></p>
+      </div>
+
+      <!-- Marquee -->
+      <div class="marquee reveal" aria-label="What's included">
+        <div class="track" id="marquee-track"></div>
+      </div>
+
+      <!-- Why -->
+      <section id="why">
+        <div class="section-head reveal">
+          <p class="eyebrow">Why Checkout Broadcast</p>
+          <h2>The fastest way to start a transfer at the counter</h2>
+          <p class="body">Transfers are how Nigeria pays in shops. Checkout Broadcast removes the slow, error-prone part: getting the right recipient and amount into the customer's app.</p>
         </div>
-        <div class="card">
-          <h3>POS agents and merchants</h3>
-          <ul class="clean">
-            <li>Shorter queues at busy counters</li>
-            <li>Payments arrive with the exact amount</li>
-            <li>A session reference you can match</li>
-          </ul>
-          <p style="margin-top:12px"><a href="https://github.com/amithyone/checkout_broadcast/discussions">Ask your POS provider to join →</a></p>
+        <div class="bento">
+          <article class="glass strong span2 reveal">
+            <span class="glow" style="right:-40px;top:-40px;width:190px;height:190px;background:rgba(32,204,180,0.22)"></span>
+            <div class="split">
+              <div>
+                <span class="ic-box ic-teal"><i data-lucide="keyboard-off"></i></span>
+                <h3 style="font-size:20px">No typing, no scanning</h3>
+                <p class="body">No 10-digit account numbers, no bank picker, no camera. The customer opens their app, taps the shop, and confirms an amount the till already set.</p>
+              </div>
+              <div class="mini-steps">
+                <div><i data-lucide="x" class="x"></i>Type account number</div>
+                <div><i data-lucide="x" class="x"></i>Pick the bank</div>
+                <div><i data-lucide="x" class="x"></i>Type the amount</div>
+                <div><i data-lucide="circle-check" class="ok"></i>Tap shop, confirm with PIN</div>
+              </div>
+            </div>
+          </article>
+          <article class="glass reveal d1">
+            <span class="ic-box ic-sky"><i data-lucide="key-round"></i></span>
+            <h3>Signed by the till</h3>
+            <p class="body">Every request carries an Ed25519 signature over the terminal, amount and session. Change the amount and verification fails.</p>
+          </article>
+          <article class="glass reveal">
+            <span class="ic-box ic-amber"><i data-lucide="landmark"></i></span>
+            <h3>Verified by the bank</h3>
+            <p class="body">The bank checks the terminal registry, replay and timestamps before the app shows the verified merchant name.</p>
+          </article>
+          <article class="glass strong span2 reveal d1">
+            <span class="glow" style="left:-40px;bottom:-48px;width:190px;height:190px;background:rgba(16,185,129,0.18)"></span>
+            <div class="split">
+              <div>
+                <span class="ic-box ic-emerald"><i data-lucide="git-merge"></i></span>
+                <h3 style="font-size:20px">Works with the rails you already run</h3>
+                <p class="body">No new settlement to certify. Checkout Broadcast only changes how a transfer starts; the payment itself is a normal NIP transfer with the session ID as the idempotency key. It complements NQR rather than replacing it.</p>
+              </div>
+              <svg viewBox="0 0 160 160" style="width:144px;height:144px;margin:0 auto;color:var(--accent);flex-shrink:0" aria-hidden="true">
+                <circle cx="80" cy="80" r="74" fill="currentColor" fill-opacity="0.08" />
+                <circle cx="80" cy="80" r="56" fill="none" stroke="currentColor" stroke-opacity="0.25" stroke-dasharray="3 6" />
+                <path d="M80 34l34 13v26c0 23-14.5 41-34 49-19.5-8-34-26-34-49V47l34-13z" fill="currentColor" fill-opacity="0.16" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
+                <path d="M65 80l11 11 21-23" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
+          </article>
         </div>
-      </div>
-    </section>
 
-    <section>
-      <h2>Status</h2>
-      <div class="card table-scroll">
-        <table>
-          <thead><tr><th>Component</th><th>Send (POS)</th><th>Receive (banking app)</th></tr></thead>
-          <tbody>
-            <tr><td>Python SDK (Windows / Linux POS)</td><td class="yes">Ready</td><td class="yes">Ready</td></tr>
-            <tr><td>TypeScript SDK (web / Node)</td><td>Simulated only</td><td class="yes">Ready (Web Bluetooth)</td></tr>
-            <tr><td>Android module (Kotlin)</td><td>In progress</td><td class="yes">Ready</td></tr>
-            <tr><td>iOS Swift Package</td><td>In progress</td><td class="yes">Ready</td></tr>
-            <tr><td>Reference bank API</td><td>—</td><td class="yes">Ready for testing</td></tr>
-            <tr><td>Laravel verify controller</td><td>—</td><td class="yes">In production</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="lead" style="margin-top:18px;font-size:16px">
-        In production with the <strong>CheckoutNow</strong> wallet app ("Pay at shop") and <strong>Cheko / CheckoutPay</strong> merchant tills.
-      </p>
-    </section>
+        <div class="glass table-card reveal">
+          <table>
+            <thead>
+              <tr><th>Method</th><th>Customer effort at the counter</th><th>Amount set by till</th><th>Tamper-proof request</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Manual bank transfer</td><td>Type 10-digit account, pick bank, type amount</td><td class="no">No</td><td class="no">No</td></tr>
+              <tr><td>Dynamic virtual account</td><td>Type a new account number every time</td><td>Partly</td><td class="no">No</td></tr>
+              <tr><td>USSD</td><td>Dial code, step through menus</td><td class="no">No</td><td class="no">No</td></tr>
+              <tr><td>NQR / QR code</td><td>Open scanner, aim at code</td><td>Only with dynamic QR on a screen</td><td>Depends on implementation</td></tr>
+              <tr class="us"><td>Checkout Broadcast</td><td>Open app, tap the shop, confirm</td><td><span class="yes"><i data-lucide="circle-check"></i>Yes</span></td><td><span class="yes"><i data-lucide="circle-check"></i>Signed + bank verified</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-    <section>
-      <h2>Security in one paragraph</h2>
-      <div class="card">
-        <p>
-          The till signs the expanded payload with Ed25519; the bank stores only the public key. Changing the amount breaks the signature.
-          A fake till fails because its terminal isn't registered. Replayed packets fail because each checkout session UUID is burned after use
-          and stale timestamps are rejected. Packets are signed, not encrypted, so they only carry a masked account suffix. Full threat model in
-          <a href="https://github.com/amithyone/checkout_broadcast/blob/main/SECURITY.md">SECURITY.md</a>.
-        </p>
-      </div>
-    </section>
+      <!-- How -->
+      <section id="how">
+        <div class="section-head center reveal">
+          <p class="eyebrow">How it works</p>
+          <h2>From checkout to paid in three steps</h2>
+        </div>
+        <div class="steps">
+          <span class="line" aria-hidden="true"></span>
+          <div class="step reveal">
+            <span class="num-tile"><i data-lucide="radio"></i><span class="num">1</span></span>
+            <h3>Till broadcasts</h3>
+            <p>The POS totals the sale, signs terminal ID, amount and a one-time session with Ed25519, and broadcasts it over Bluetooth LE.</p>
+          </div>
+          <div class="step reveal d1">
+            <span class="num-tile"><i data-lucide="shield-check"></i><span class="num">2</span></span>
+            <h3>Bank verifies</h3>
+            <p>The customer's app sends the packet to its bank's <b>/verify-broadcast</b>. The bank checks signature, registry and replay, and returns the merchant.</p>
+          </div>
+          <div class="step reveal d2">
+            <span class="num-tile"><i data-lucide="circle-check-big"></i><span class="num">3</span></span>
+            <h3>Customer confirms</h3>
+            <p>The transfer opens pre-filled with a locked amount. The customer confirms with their PIN and the bank sends a normal transfer.</p>
+          </div>
+        </div>
+      </section>
 
-    <section>
-      <h2>Bring it to your bank or POS</h2>
-      <p class="lead">Pilots, integration help, or questions — we'd like to hear from bank digital teams, PTSPs, agent networks and POS app makers.</p>
-      <div class="cta">
-        <a class="btn primary" href="https://github.com/amithyone/checkout_broadcast/discussions">Start a discussion</a>
-        <a class="btn ghost" href="https://github.com/amithyone/checkout_broadcast/blob/main/docs/one-pager.md">One-page overview</a>
-        <a class="btn ghost" href="mailto:amithyone@gmail.com?subject=Checkout%20Broadcast%20pilot">Email the maintainer</a>
-      </div>
-    </section>
+      <!-- Who -->
+      <section id="who">
+        <div class="section-head reveal">
+          <p class="eyebrow">Who it's for</p>
+          <h2>Built for everyone at the counter</h2>
+          <p class="body">One open protocol, so any participating bank app can pay any participating till.</p>
+        </div>
+        <div class="cards3">
+          <a class="glass aud reveal" href="https://github.com/amithyone/checkout_broadcast/blob/main/docs/banking-app-integration.md">
+            <span class="glow" style="right:-48px;top:-48px;width:160px;height:160px;background:rgba(124,58,237,0.28)"></span>
+            <div class="top"><span class="tile" style="width:48px;height:48px;font-size:22px;background:#7c3aed"><i data-lucide="landmark"></i></span><span class="arrow"><i data-lucide="arrow-up-right"></i></span></div>
+            <h3>Banks and wallets</h3>
+            <ul>
+              <li><i data-lucide="circle-check"></i>Fewer mistyped transfers and "I've sent it" disputes</li>
+              <li><i data-lucide="circle-check"></i>No new settlement rail to certify</li>
+              <li><i data-lucide="circle-check"></i>One verify endpoint and a receive screen</li>
+            </ul>
+            <span class="more">Banking app guide <i data-lucide="arrow-right"></i></span>
+          </a>
+          <a class="glass aud reveal d1" href="https://github.com/amithyone/checkout_broadcast/blob/main/docs/pos-app-integration.md">
+            <span class="glow" style="right:-48px;top:-48px;width:160px;height:160px;background:rgba(14,165,233,0.30)"></span>
+            <div class="top"><span class="tile" style="width:48px;height:48px;font-size:22px;background:#0ea5e9"><i data-lucide="monitor-smartphone"></i></span><span class="arrow"><i data-lucide="arrow-up-right"></i></span></div>
+            <h3>POS software and PTSPs</h3>
+            <ul>
+              <li><i data-lucide="circle-check"></i>Small add-on for Android or Windows/Linux POS apps</li>
+              <li><i data-lucide="circle-check"></i>Most modern Android POS terminals have Bluetooth</li>
+              <li><i data-lucide="circle-check"></i>Python SDK sends today</li>
+            </ul>
+            <span class="more">POS integration guide <i data-lucide="arrow-right"></i></span>
+          </a>
+          <a class="glass aud reveal d2" href="https://github.com/amithyone/checkout_broadcast/discussions">
+            <span class="glow" style="right:-48px;top:-48px;width:160px;height:160px;background:rgba(32,204,180,0.32)"></span>
+            <div class="top"><span class="tile" style="width:48px;height:48px;font-size:22px;background:linear-gradient(135deg,#20ccb4,#3f8a7f)"><i data-lucide="store"></i></span><span class="arrow"><i data-lucide="arrow-up-right"></i></span></div>
+            <h3>POS agents and merchants</h3>
+            <ul>
+              <li><i data-lucide="circle-check"></i>Shorter queues at busy counters</li>
+              <li><i data-lucide="circle-check"></i>Payments arrive with the exact amount</li>
+              <li><i data-lucide="circle-check"></i>A session reference you can match</li>
+            </ul>
+            <span class="more">Ask your POS provider to join <i data-lucide="arrow-right"></i></span>
+          </a>
+        </div>
+      </section>
+
+      <!-- Status -->
+      <section id="status">
+        <div class="status-grid">
+          <div>
+            <div class="section-head reveal">
+              <p class="eyebrow">Status</p>
+              <h2>Already live, ready to integrate</h2>
+              <p class="body">In production today with the CheckoutNow wallet ("Pay at shop") and Cheko / CheckoutPay merchant tills. SDKs, a reference bank API and conformance tests are in the repo.</p>
+            </div>
+            <div class="adopters reveal">
+              <span class="glass"><i data-lucide="badge-check"></i>CheckoutNow</span>
+              <span class="glass"><i data-lucide="badge-check"></i>Cheko / CheckoutPay</span>
+            </div>
+            <div class="cta reveal">
+              <a class="btn primary" href="https://github.com/amithyone/checkout_broadcast/releases">Latest release <i data-lucide="arrow-right"></i></a>
+            </div>
+          </div>
+          <div class="glass strong status-list reveal d1">
+            <div class="status-row"><span class="tile" style="background:#3776ab"><i data-lucide="terminal"></i></span><div class="meta"><b>Python SDK</b><span>Windows / Linux POS · send and receive</span></div><span class="badge ready">Ready</span></div>
+            <div class="status-row"><span class="tile" style="background:#3178c6"><i data-lucide="globe"></i></span><div class="meta"><b>TypeScript SDK</b><span>Web Bluetooth receive</span></div><span class="badge ready">Ready</span></div>
+            <div class="status-row"><span class="tile" style="background:#16a34a"><i data-lucide="smartphone"></i></span><div class="meta"><b>Android module</b><span>Receive ready · send in progress</span></div><span class="badge wip">Receive</span></div>
+            <div class="status-row"><span class="tile" style="background:#111827"><i data-lucide="smartphone"></i></span><div class="meta"><b>iOS Swift Package</b><span>Receive ready · send in progress</span></div><span class="badge wip">Receive</span></div>
+            <div class="status-row"><span class="tile" style="background:#059669"><i data-lucide="server"></i></span><div class="meta"><b>Reference bank API</b><span>FastAPI · for bank testing</span></div><span class="badge ready">Ready</span></div>
+            <div class="status-row"><span class="tile" style="background:#ef4444"><i data-lucide="code"></i></span><div class="meta"><b>Laravel verify controller</b><span>Running for Cheko</span></div><span class="badge prod">Production</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq">
+        <div class="faq-grid">
+          <div class="section-head reveal">
+            <p class="eyebrow">FAQ</p>
+            <h2>Questions? We have answers.</h2>
+            <p class="body">Can't find what you need? Ask in GitHub Discussions and we'll help with your integration.</p>
+            <div class="cta"><a class="btn ghost" href="https://github.com/amithyone/checkout_broadcast/discussions">Ask a question</a></div>
+          </div>
+          <div class="faq" id="faq-list"></div>
+        </div>
+      </section>
+
+      <!-- Final CTA -->
+      <section class="reveal" style="padding-top:24px">
+        <div class="final">
+          <span class="glow" style="right:-80px;top:-80px;width:290px;height:290px;background:rgba(255,255,255,0.18);z-index:0"></span>
+          <span class="glow" style="left:40px;bottom:-96px;width:240px;height:240px;background:rgba(78,222,163,0.32);z-index:0"></span>
+          <div class="inner">
+            <div>
+              <p class="eyebrow">Pilot with us</p>
+              <h2>Bring Checkout Broadcast to your bank or POS</h2>
+              <p class="lead">We'd like to hear from bank digital teams, PTSPs, agent networks and POS app makers. Integration help is free.</p>
+              <div class="cta">
+                <a class="btn white" href="https://github.com/amithyone/checkout_broadcast/discussions">Start a discussion <i data-lucide="arrow-right"></i></a>
+                <a class="btn outline" href="mailto:amithyone@gmail.com?subject=Checkout%20Broadcast%20pilot">Email the maintainer</a>
+              </div>
+            </div>
+            <div class="final-art" aria-hidden="true">
+              <svg class="circles" viewBox="0 0 200 200">
+                <circle cx="100" cy="100" r="96" fill="none" stroke="currentColor" stroke-opacity="0.22" stroke-dasharray="3 7" />
+                <circle cx="100" cy="100" r="72" fill="none" stroke="currentColor" stroke-opacity="0.28" />
+                <circle cx="100" cy="100" r="48" fill="currentColor" fill-opacity="0.12" />
+              </svg>
+              <span class="center floaty"><i data-lucide="radio"></i></span>
+              <span class="tile floaty d2" style="left:6%;top:18%;background:#7c3aed"><i data-lucide="landmark"></i></span>
+              <span class="tile floaty d1" style="right:6%;top:14%;background:#0ea5e9"><i data-lucide="monitor-smartphone"></i></span>
+              <span class="tile floaty d2" style="left:12%;bottom:10%;background:#f59e0b"><i data-lucide="store"></i></span>
+              <span class="tile floaty d1" style="right:10%;bottom:14%;background:#0f172a"><i data-lucide="smartphone"></i></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
 
     <footer>
-      Checkout Broadcast · MIT License ·
-      <a href="https://github.com/amithyone/checkout_broadcast">github.com/amithyone/checkout_broadcast</a>
+      <div class="wrap row-f">
+        <a class="brand" href="#top">
+          <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M7.5 8a6 6 0 0 1 0 8"/><path d="M4.5 5a10 10 0 0 1 0 14"/><circle cx="14.5" cy="12" r="3" fill="currentColor" stroke="none"/></svg></span>
+          Checkout Broadcast
+        </a>
+        <nav>
+          <a href="https://github.com/amithyone/checkout_broadcast">GitHub</a>
+          <a href="https://github.com/amithyone/checkout_broadcast/blob/main/spec/ble-transport.md">Spec</a>
+          <a href="https://github.com/amithyone/checkout_broadcast/blob/main/SECURITY.md">Security</a>
+          <a href="https://github.com/amithyone/checkout_broadcast/blob/main/docs/one-pager.md">One-pager</a>
+          <a href="https://github.com/amithyone/checkout_broadcast/discussions">Discussions</a>
+        </nav>
+        <span>MIT License</span>
+      </div>
     </footer>
   </div>
+
+  <script src="https://unpkg.com/lucide@0.544.0/dist/umd/lucide.min.js"></script>
+  <script>
+    var MARQUEE = [
+      ['terminal', '#3776ab', 'Python SDK'],
+      ['globe', '#3178c6', 'TypeScript SDK'],
+      ['smartphone', '#16a34a', 'Android'],
+      ['smartphone', '#111827', 'iOS'],
+      ['server', '#059669', 'Reference bank API'],
+      ['code', '#ef4444', 'Laravel verify'],
+      ['key-round', '#7c3aed', 'Ed25519'],
+      ['bluetooth', '#0ea5e9', 'Bluetooth LE'],
+      ['container', '#2496ed', 'Docker'],
+      ['flask-conical', '#f59e0b', 'Conformance tests'],
+    ];
+    var FAQS = [
+      ['Is this a new payment rail?', 'No. Checkout Broadcast only starts the transfer. The payment itself is a normal bank transfer over NIP, using the session ID as the idempotency key so retries never double-charge.'],
+      ['How is it secure if anyone nearby can read the broadcast?', 'Packets are signed, not secret. They carry only a masked account suffix. The till signs with Ed25519, the bank checks the signature against its terminal registry, and each checkout session can only be used once. A fake till, a changed amount, or a replayed packet all fail verification.'],
+      ['Does it work on iPhone?', 'Yes. iOS limits Bluetooth scanning in the background, so the customer should have the banking app open, for example on a "Pay at shop" screen. Android can also scan from a foreground service.'],
+      ['How is it different from NQR?', 'Both start a merchant transfer with the amount set by the till. NQR needs a camera and a printed or displayed code; Checkout Broadcast works by proximity with no code at all. Banks can support both.'],
+      ['What does it cost?', 'Nothing. It is MIT licensed. Banks, wallets and POS makers can use, modify and ship it without fees.'],
+      ['How do we start a pilot?', 'Open a discussion on GitHub or email the maintainer. A typical pilot is one bank or wallet plus a handful of merchants on one POS model.'],
+    ];
+
+    function el(html) { var t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
+
+    var track = document.getElementById('marquee-track');
+    [0, 1].forEach(function (loop) {
+      MARQUEE.forEach(function (m) {
+        var node = el('<span class="glass tag"' + (loop ? ' aria-hidden="true"' : '') + '><span class="tile" style="background:' + m[1] + '"><i data-lucide="' + m[0] + '"></i></span>' + m[2] + '</span>');
+        track.appendChild(node);
+      });
+    });
+
+    var faqList = document.getElementById('faq-list');
+    FAQS.forEach(function (f, i) {
+      var item = el('<div class="glass item reveal' + (i % 2 ? ' d1' : '') + (i === 0 ? ' open' : '') + '"><button type="button" aria-expanded="' + (i === 0) + '"><span>' + f[0] + '</span><span class="plus"><i data-lucide="plus"></i></span></button><div class="ans"><p>' + f[1] + '</p></div></div>');
+      item.querySelector('button').addEventListener('click', function () {
+        var open = item.classList.toggle('open');
+        this.setAttribute('aria-expanded', open);
+      });
+      faqList.appendChild(item);
+    });
+
+    function renderIcons() { if (window.lucide) lucide.createIcons(); }
+
+    var toggle = document.getElementById('theme-toggle');
+    function syncToggle() {
+      var dark = document.documentElement.classList.contains('dark');
+      toggle.innerHTML = '<i data-lucide="' + (dark ? 'sun' : 'moon') + '"></i>';
+      document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#050505' : '#dceee9');
+      renderIcons();
+    }
+    toggle.addEventListener('click', function () {
+      var dark = document.documentElement.classList.contains('dark');
+      document.documentElement.className = dark ? 'light' : 'dark';
+      localStorage.setItem('cb-theme', dark ? 'light' : 'dark');
+      syncToggle();
+    });
+    syncToggle();
+
+    var reveals = document.querySelectorAll('.reveal');
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+      reveals.forEach(function (n) { io.observe(n); });
+    } else {
+      reveals.forEach(function (n) { n.classList.add('in'); });
+    }
+  </script>
 </body>
 </html>
