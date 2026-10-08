@@ -26,6 +26,10 @@ android {
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    testImplementation("junit:junit:4.13.2")
+    // android.jar stubs org.json in local unit tests.
+    testImplementation("org.json:json:20240303")
 }
 
 // Publish to Maven Local: ./gradlew publishToMavenLocal
@@ -35,7 +39,7 @@ publishing {
         create<MavenPublication>("release") {
             groupId = "com.checkoutbroadcast"
             artifactId = "checkout-broadcast"
-            version = "1.3.1"
+            version = "1.4.0"
 
             afterEvaluate {
                 from(components["release"])

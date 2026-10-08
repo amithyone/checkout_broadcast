@@ -45,3 +45,30 @@ jobs:
           sleep 2
           curl -sf http://127.0.0.1:8090/health
           curl -sf http://127.0.0.1:8090/ready
+
+  android-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build and unit-test Android SDK
+        working-directory: sdk/android
+        run: ./gradlew :checkout-broadcast:assembleRelease :checkout-broadcast:testReleaseUnitTest --console=plain
+
+  ios-sdk:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test Swift package (macOS)
+        working-directory: sdk/ios/CheckoutBroadcast
+        run: swift test
+
+      - name: Build Swift package for iOS
+        working-directory: sdk/ios/CheckoutBroadcast
+        run: swift build --sdk "$(xcrun --sdk iphoneos --show-sdk-path)" --triple arm64-apple-ios15.0

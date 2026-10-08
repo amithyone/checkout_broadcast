@@ -29,3 +29,11 @@ sdk/typescript/dist/
 
 # Logs
 *.log
+
+# Android / Gradle
+.gradle/
+local.properties
+
+# Swift Package Manager
+.build/
+.swiftpm/

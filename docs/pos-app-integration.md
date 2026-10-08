@@ -206,6 +206,7 @@ val addon = CheckoutBroadcastAddon(CheckoutBroadcastConfig(
 - Install: `pip install -r requirements-ble.txt`
 - POS must be within ~10 m of customer phone
 - See [BLE transport spec](../spec/ble-transport.md) for GATT UUIDs
+- So every phone finds the till: advertise a local name starting with `CP-` (or containing `CHECKOUT`), include service `cbbc0001-…` in the advert where your stack allows, and make the packet characteristic **readable without pairing** ([advert recommendations](../spec/ble-transport.md#sender-pos-advert-recommendations))
 
 **macOS note:** Python BLE send is not supported on macOS. Use a Windows POS device or simulated transport for Mac dev.
 

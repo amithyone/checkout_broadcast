@@ -1,0 +1,120 @@
+{
+  "description": "BLE packet → POST /verify-broadcast body. Every receiver (Python, TypeScript, Kotlin, Swift, CheckoutNow Flutter) must produce `verify_body` exactly; `amount_ngn` is the naira amount shown and transferred.",
+  "vectors": [
+    {
+      "name": "compact checkout with masked account (Cheko production shape)",
+      "packet": {
+        "p": { "v": 2.1, "sid": "550e8400-e29b-41d4-a716-446655440000", "tid": "CP-1RK8Z", "ts": 1738123456789, "amt": 649, "msk": "***4863" },
+        "alg": "ed25519",
+        "sig": "c2lnLTE="
+      },
+      "verify_body": {
+        "payload": {
+          "protocol_version": 2.1,
+          "session_uuid_v4": "550e8400-e29b-41d4-a716-446655440000",
+          "terminal_id": "CP-1RK8Z",
+          "timestamp_ms": 1738123456789,
+          "transaction_details": { "total_amount_ngn": 649 },
+          "account_info_public_display": { "masked_account_suffix": "***4863" }
+        },
+        "signature_alg": "ed25519",
+        "signature": "c2lnLTE="
+      },
+      "amount_ngn": 6.49,
+      "is_presence": false
+    },
+    {
+      "name": "compact idle till (presence via k, no amt, no msk)",
+      "packet": {
+        "p": { "v": 2.1, "sid": "6f1c2d3e-4b5a-4c6d-8e7f-0a1b2c3d4e5f", "tid": "CP-02", "ts": 1738123456000, "k": "presence" },
+        "alg": "ed25519",
+        "sig": "c2lnLTI="
+      },
+      "verify_body": {
+        "payload": {
+          "protocol_version": 2.1,
+          "session_uuid_v4": "6f1c2d3e-4b5a-4c6d-8e7f-0a1b2c3d4e5f",
+          "terminal_id": "CP-02",
+          "timestamp_ms": 1738123456000,
+          "transaction_details": { "total_amount_ngn": 0 },
+          "session_kind": "presence"
+        },
+        "signature_alg": "ed25519",
+        "signature": "c2lnLTI="
+      },
+      "amount_ngn": 0,
+      "is_presence": true
+    },
+    {
+      "name": "compact presence by missing amt only (no session_kind invented)",
+      "packet": {
+        "p": { "v": 2.1, "sid": "7a2b3c4d-5e6f-4a1b-9c2d-3e4f5a6b7c8d", "tid": "TERM-003", "ts": 1738123450000, "msk": "***1234" },
+        "alg": "ed25519",
+        "sig": "c2lnLTM="
+      },
+      "verify_body": {
+        "payload": {
+          "protocol_version": 2.1,
+          "session_uuid_v4": "7a2b3c4d-5e6f-4a1b-9c2d-3e4f5a6b7c8d",
+          "terminal_id": "TERM-003",
+          "timestamp_ms": 1738123450000,
+          "transaction_details": { "total_amount_ngn": 0 },
+          "account_info_public_display": { "masked_account_suffix": "***1234" }
+        },
+        "signature_alg": "ed25519",
+        "signature": "c2lnLTM="
+      },
+      "amount_ngn": 0,
+      "is_presence": true
+    },
+    {
+      "name": "compact checkout kind, default alg",
+      "packet": {
+        "p": { "v": 2.1, "sid": "8b3c4d5e-6f7a-4b2c-8d3e-4f5a6b7c8d9e", "tid": "CP-ABCD", "ts": 1738123460000, "amt": 150000, "k": "checkout" },
+        "sig": "c2lnLTQ="
+      },
+      "verify_body": {
+        "payload": {
+          "protocol_version": 2.1,
+          "session_uuid_v4": "8b3c4d5e-6f7a-4b2c-8d3e-4f5a6b7c8d9e",
+          "terminal_id": "CP-ABCD",
+          "timestamp_ms": 1738123460000,
+          "transaction_details": { "total_amount_ngn": 150000 },
+          "session_kind": "pos_checkout"
+        },
+        "signature_alg": "ed25519",
+        "signature": "c2lnLTQ="
+      },
+      "amount_ngn": 1500,
+      "is_presence": false
+    },
+    {
+      "name": "legacy full envelope passes through, default alg HMAC-SHA256",
+      "packet": {
+        "payload": {
+          "protocol_version": 1,
+          "timestamp_ms": 1738123456789,
+          "session_uuid_v4": "9c4d5e6f-7a8b-4c3d-9e4f-5a6b7c8d9e0f",
+          "terminal_id": "TERM-001",
+          "transaction_details": { "currency_code": "NGN", "total_amount_ngn": 5000, "item_count": 1 },
+          "account_info_public_display": { "bank_name": "Moniepoint Microfinance Bank", "masked_account_suffix": "***1234" }
+        },
+        "signature": "c2lnLTU="
+      },
+      "verify_body": {
+        "payload": {
+          "protocol_version": 1,
+          "timestamp_ms": 1738123456789,
+          "session_uuid_v4": "9c4d5e6f-7a8b-4c3d-9e4f-5a6b7c8d9e0f",
+          "terminal_id": "TERM-001",
+          "transaction_details": { "currency_code": "NGN", "total_amount_ngn": 5000, "item_count": 1 },
+          "account_info_public_display": { "bank_name": "Moniepoint Microfinance Bank", "masked_account_suffix": "***1234" }
+        },
+        "signature_alg": "HMAC-SHA256",
+        "signature": "c2lnLTU="
+      },
+      "amount_ngn": 5000,
+      "is_presence": false
+    }
+  ]
+}

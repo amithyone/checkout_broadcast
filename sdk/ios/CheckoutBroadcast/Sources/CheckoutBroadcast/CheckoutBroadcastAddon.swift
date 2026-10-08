@@ -6,6 +6,8 @@ public struct CheckoutBroadcastConfig {
     public let terminalId: String?
     public let signingKey: String?
     public let transport: String
+    /// Extra headers on `POST /verify-broadcast`, e.g. the signed-in customer's session token.
+    public var verifyHeaders: [String: String]
     public var onPaymentReceived: ((VerifiedPayment) -> Void)?
     public var onError: ((Error) -> Void)?
 
@@ -15,6 +17,7 @@ public struct CheckoutBroadcastConfig {
         terminalId: String? = nil,
         signingKey: String? = nil,
         transport: String = "simulated",
+        verifyHeaders: [String: String] = [:],
         onPaymentReceived: ((VerifiedPayment) -> Void)? = nil,
         onError: ((Error) -> Void)? = nil
     ) {
@@ -23,6 +26,7 @@ public struct CheckoutBroadcastConfig {
         self.terminalId = terminalId
         self.signingKey = signingKey
         self.transport = transport
+        self.verifyHeaders = verifyHeaders
         self.onPaymentReceived = onPaymentReceived
         self.onError = onError
     }
@@ -38,23 +42,30 @@ public struct CheckoutData {
     }
 }
 
+/// A verified till payment, ready to pre-fill a bank transfer.
+///
+/// `amountNgn` comes from the signed packet (compact wire kobo ÷ 100). When `isPresence` is true the
+/// till is idle with no amount: ask the customer to enter one. Use `sessionUuid` as the transfer
+/// idempotency key.
 public struct VerifiedPayment {
     public let merchantName: String
-    public let amountNgn: Int
-    public let maskedAccountSuffix: String
+    public let amountNgn: Double
+    public let maskedAccountSuffix: String?
     public let sessionUuid: String
     public let terminalId: String
     public let recipientAccount: String?
     public let recipientBankCode: String?
+    public let isPresence: Bool
 
     public init(
         merchantName: String,
-        amountNgn: Int,
-        maskedAccountSuffix: String,
+        amountNgn: Double,
+        maskedAccountSuffix: String?,
         sessionUuid: String,
         terminalId: String,
         recipientAccount: String? = nil,
-        recipientBankCode: String? = nil
+        recipientBankCode: String? = nil,
+        isPresence: Bool = false
     ) {
         self.merchantName = merchantName
         self.amountNgn = amountNgn
@@ -63,6 +74,7 @@ public struct VerifiedPayment {
         self.terminalId = terminalId
         self.recipientAccount = recipientAccount
         self.recipientBankCode = recipientBankCode
+        self.isPresence = isPresence
     }
 }
 
@@ -110,6 +122,12 @@ public final class CheckoutBroadcastAddon {
         started = false
     }
 
+    /// Forget sessions and tills already seen, e.g. each time the pay-at-shop picker opens.
+    public func resetSeenSessions() {
+        seenSessions.removeAll()
+        bleReceiver?.resetSeen()
+    }
+
     public func sendCheckout(data: CheckoutData) throws {
         if config.role == "receive" {
             throw RoleNotAllowedError.sendNotAllowed
@@ -124,10 +142,23 @@ public final class CheckoutBroadcastAddon {
         )
     }
 
+    /// Verify a packet pasted or scanned by other means (QR, manual JSON).
+    public func verifyPacketJson(_ json: String) async throws -> VerifiedPayment {
+        guard let packet = BroadcastWire.parse(json) else {
+            throw NSError(domain: "CheckoutBroadcast", code: 4, userInfo: [
+                NSLocalizedDescriptionKey: "Unrecognized checkout broadcast packet",
+            ])
+        }
+        return try await verifyWithBank(packet)
+    }
+
     private func handlePacketData(_ data: Data) {
+        guard let packet = BroadcastWire.parse(data), seenSessions.insert(packet.sessionUuid).inserted else {
+            return
+        }
         Task {
             do {
-                let payment = try await verifyWithBank(packetData: data)
+                let payment = try await verifyWithBank(packet)
                 await MainActor.run {
                     config.onPaymentReceived?(payment)
                 }
@@ -139,67 +170,75 @@ public final class CheckoutBroadcastAddon {
         }
     }
 
-    private func verifyWithBank(packetData: Data) async throws -> VerifiedPayment {
-        guard let json = try JSONSerialization.jsonObject(with: packetData) as? [String: Any],
-              let payload = json["payload"] as? [String: Any],
-              let session = payload["session_uuid_v4"] as? String,
-              let timestampMs = payload["timestamp_ms"] as? Int64 ?? (payload["timestamp_ms"] as? Int).map(Int64.init)
-        else {
-            throw NSError(domain: "CheckoutBroadcast", code: 4, userInfo: [
-                NSLocalizedDescriptionKey: "Invalid packet JSON",
+    /// Packet age is not checked here: a till session stays open until paid or cancelled, and the
+    /// server decides (returns `valid:false` with `session_status` when closed).
+    private func verifyWithBank(_ packet: BroadcastPacket) async throws -> VerifiedPayment {
+        let base = config.bankApiUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let url = URL(string: base + "/verify-broadcast") else {
+            throw NSError(domain: "CheckoutBroadcast", code: 7, userInfo: [
+                NSLocalizedDescriptionKey: "Invalid bankApiUrl",
             ])
         }
-
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
-        if abs(now - timestampMs) > BleConstants.maxAgeMs {
-            throw NSError(domain: "CheckoutBroadcast", code: 5, userInfo: [
-                NSLocalizedDescriptionKey: "Timestamp outside 10-minute window",
-            ])
-        }
-        if seenSessions.contains(session) {
-            throw NSError(domain: "CheckoutBroadcast", code: 6, userInfo: [
-                NSLocalizedDescriptionKey: "Session replay detected",
-            ])
-        }
-        seenSessions.insert(session)
-
-        let url = URL(string: config.bankApiUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/verify-broadcast")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = packetData
-        request.timeoutInterval = 10
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        for (key, value) in config.verifyHeaders {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        request.httpBody = try packet.verifyBodyData()
+        request.timeoutInterval = 45
 
         let (responseData, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw NSError(domain: "CheckoutBroadcast", code: 7, userInfo: [
-                NSLocalizedDescriptionKey: "Invalid HTTP response",
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let body = (try? JSONSerialization.jsonObject(with: responseData) as? [String: Any]) ?? [:]
+        let data = body["data"] as? [String: Any] ?? body
+
+        func serverMessage(_ o: [String: Any]) -> String? {
+            for key in ["message", "error"] {
+                if let s = (o[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty {
+                    return s
+                }
+            }
+            return nil
+        }
+
+        guard (200...299).contains(status) else {
+            let fallback = status == 429 ? "Bank API rate limit exceeded" : "Could not verify shop checkout"
+            throw NSError(domain: "CheckoutBroadcast", code: status, userInfo: [
+                NSLocalizedDescriptionKey: serverMessage(body) ?? fallback,
             ])
         }
-        guard let body = try JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
-            throw NSError(domain: "CheckoutBroadcast", code: 8, userInfo: [
-                NSLocalizedDescriptionKey: "Invalid verify response",
-            ])
-        }
-        if http.statusCode == 429 {
-            throw NSError(domain: "CheckoutBroadcast", code: 429, userInfo: [
-                NSLocalizedDescriptionKey: "Rate limit exceeded",
-            ])
-        }
-        guard (body["valid"] as? Bool) == true else {
+        // Verify failures (unknown terminal, bad signature, session paid) arrive as HTTP 200.
+        if (body["valid"] as? Bool) == false || (data["valid"] as? Bool) == false {
             throw NSError(domain: "CheckoutBroadcast", code: 9, userInfo: [
-                NSLocalizedDescriptionKey: body["error"] as? String ?? "Verification failed",
+                NSLocalizedDescriptionKey: serverMessage(data) ?? serverMessage(body)
+                    ?? "This shop checkout could not be verified",
             ])
         }
 
+        func field(_ keys: String...) -> String? {
+            for key in keys {
+                if let s = (data[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty {
+                    return s
+                }
+            }
+            return nil
+        }
+
+        let payload = packet.verifyBody["payload"] as? [String: Any]
+        let display = payload?["account_info_public_display"] as? [String: Any]
+        let payloadMsk = (display?["masked_account_suffix"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+
         return VerifiedPayment(
-            merchantName: body["merchant_name"] as? String ?? "",
-            amountNgn: body["amount_ngn"] as? Int ?? 0,
-            maskedAccountSuffix: body["masked_account_suffix"] as? String ?? "",
-            sessionUuid: body["session_uuid"] as? String ?? session,
-            terminalId: body["terminal_id"] as? String ?? "",
-            recipientAccount: body["recipient_account"] as? String,
-            recipientBankCode: body["recipient_bank_code"] as? String
+            merchantName: field("merchant_name", "merchantName") ?? "Shop",
+            amountNgn: packet.amountNgn,
+            maskedAccountSuffix: field("masked_account_suffix") ?? payloadMsk,
+            sessionUuid: field("session_uuid", "session_uuid_v4") ?? packet.sessionUuid,
+            terminalId: field("terminal_id") ?? packet.terminalId,
+            recipientAccount: field("recipient_account", "account_number"),
+            recipientBankCode: field("recipient_bank_code", "bank_code"),
+            isPresence: packet.isPresence
         )
     }
 }

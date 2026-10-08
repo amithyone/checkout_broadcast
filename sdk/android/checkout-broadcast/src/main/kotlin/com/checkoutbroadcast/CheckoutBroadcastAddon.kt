@@ -25,6 +25,8 @@ data class CheckoutBroadcastConfig(
     val transport: String = "simulated",
     /** Required for BLE receive when bleReceiver is not injected (Android). */
     val androidContext: Context? = null,
+    /** Extra headers on `POST /verify-broadcast`, e.g. the signed-in customer's session token. */
+    val verifyHeaders: Map<String, String> = emptyMap(),
     val onPaymentReceived: ((VerifiedPayment) -> Unit)? = null,
     val onSendComplete: ((String) -> Unit)? = null,
     val onError: ((Exception) -> Unit)? = null,
@@ -32,14 +34,22 @@ data class CheckoutBroadcastConfig(
 
 data class CheckoutData(val amountNgn: Int, val itemCount: Int = 1)
 
+/**
+ * A verified till payment, ready to pre-fill a bank transfer.
+ *
+ * [amountNgn] comes from the signed packet (compact wire kobo ÷ 100). When [isPresence] is true the
+ * till is idle with no amount: ask the customer to enter one. Use [sessionUuid] as the transfer
+ * idempotency key.
+ */
 data class VerifiedPayment(
     val merchantName: String,
-    val amountNgn: Int,
-    val maskedAccountSuffix: String,
+    val amountNgn: Double,
+    val maskedAccountSuffix: String?,
     val sessionUuid: String,
     val terminalId: String,
     val recipientAccount: String? = null,
     val recipientBankCode: String? = null,
+    val isPresence: Boolean = false,
 )
 
 class RoleNotAllowedError(message: String) : Exception(message)
@@ -98,15 +108,30 @@ class CheckoutBroadcastAddon(
     }
 
     fun onBlePacketBytes(bytes: ByteArray) {
+        val packet = BroadcastWire.parse(bytes) ?: return
+        if (!seenSessions.add(packet.sessionUuid)) return
         scope.launch {
             try {
-                val json = JSONObject(String(bytes, Charsets.UTF_8))
-                val payment = verifyWithBank(json)
+                val payment = verifyWithBank(packet)
                 config.onPaymentReceived?.invoke(payment)
             } catch (e: Exception) {
                 config.onError?.invoke(e)
             }
         }
+    }
+
+    /** Verify a packet pasted or scanned by other means (QR, manual JSON). Blocking — call off the main thread. */
+    fun verifyPacketJson(json: String): VerifiedPayment {
+        val packet = BroadcastWire.parse(json)
+            ?: throw IllegalArgumentException("Unrecognized checkout broadcast packet")
+        return verifyWithBank(packet)
+    }
+
+    /** Forget sessions and tills already seen, e.g. each time the pay-at-shop picker opens. */
+    fun resetSeenSessions() {
+        seenSessions.clear()
+        bleReceiver?.resetSeen()
+        internalBleReceiver?.resetSeen()
     }
 
     fun sendCheckout(data: CheckoutData) {
@@ -121,52 +146,65 @@ class CheckoutBroadcastAddon(
         )
     }
 
-    private fun verifyWithBank(packetJson: JSONObject): VerifiedPayment {
-        val payload = packetJson.getJSONObject("payload")
-        val session = payload.getString("session_uuid_v4")
-        if (!payload.has("timestamp_ms") || payload.isNull("timestamp_ms")) {
-            throw Exception("Missing timestamp_ms in payload")
-        }
-        val timestampMs = payload.getLong("timestamp_ms")
-        val now = System.currentTimeMillis()
-        if (kotlin.math.abs(now - timestampMs) > 600_000) {
-            throw Exception("Packet timestamp outside 10-minute window")
-        }
-        if (!seenSessions.add(session)) {
-            throw Exception("Session UUID already consumed (replay)")
-        }
-
+    /**
+     * Packet age is not checked here: a till session stays open until paid or cancelled, and the
+     * server decides (returns `valid:false` with `session_status` when closed).
+     */
+    private fun verifyWithBank(packet: BroadcastPacket): VerifiedPayment {
         val url = URL("${config.bankApiUrl.trimEnd('/')}/verify-broadcast")
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.setRequestProperty("Content-Type", "application/json")
+        conn.setRequestProperty("Accept", "application/json")
+        config.verifyHeaders.forEach { (k, v) -> conn.setRequestProperty(k, v) }
         conn.doOutput = true
-        conn.connectTimeout = 10_000
-        conn.readTimeout = 10_000
-        OutputStreamWriter(conn.outputStream).use { it.write(packetJson.toString()) }
+        conn.connectTimeout = 15_000
+        conn.readTimeout = 45_000
+        OutputStreamWriter(conn.outputStream, Charsets.UTF_8).use { it.write(packet.verifyBody.toString()) }
 
         val code = conn.responseCode
-        val bodyStr = if (code in 200..299) {
-            conn.inputStream.bufferedReader().readText()
-        } else {
-            conn.errorStream?.bufferedReader()?.readText() ?: "{}"
+        val bodyStr = try {
+            (if (code in 200..299) conn.inputStream else conn.errorStream)
+                ?.bufferedReader()?.readText().orEmpty()
+        } finally {
+            conn.disconnect()
         }
-        val body = JSONObject(bodyStr)
-        if (code == 429) {
-            throw Exception("Bank API rate limit exceeded")
+        val body = try {
+            JSONObject(bodyStr)
+        } catch (_: Exception) {
+            JSONObject()
         }
-        if (!body.optBoolean("valid", false)) {
-            throw Exception(body.optString("error", "Invalid broadcast packet"))
+        val data = body.optJSONObject("data") ?: body
+
+        fun serverMessage(o: JSONObject): String? =
+            listOf("message", "error").map { o.optString(it).trim() }.firstOrNull { it.isNotEmpty() }
+
+        if (code !in 200..299) {
+            throw Exception(
+                serverMessage(body) ?: if (code == 429) "Bank API rate limit exceeded" else "Could not verify shop checkout"
+            )
+        }
+        // Verify failures (unknown terminal, bad signature, session paid) arrive as HTTP 200.
+        if (body.opt("valid") == false || data.opt("valid") == false) {
+            throw Exception(serverMessage(data) ?: serverMessage(body) ?: "This shop checkout could not be verified")
         }
 
+        fun field(vararg keys: String): String? =
+            keys.map { data.optString(it).trim() }.firstOrNull { it.isNotEmpty() }
+
+        val payloadMsk = packet.verifyBody.optJSONObject("payload")
+            ?.optJSONObject("account_info_public_display")
+            ?.optString("masked_account_suffix")?.trim()?.ifEmpty { null }
+
         return VerifiedPayment(
-            merchantName = body.getString("merchant_name"),
-            amountNgn = body.getInt("amount_ngn"),
-            maskedAccountSuffix = body.getString("masked_account_suffix"),
-            sessionUuid = body.getString("session_uuid"),
-            terminalId = body.getString("terminal_id"),
-            recipientAccount = body.optString("recipient_account").ifBlank { null },
-            recipientBankCode = body.optString("recipient_bank_code").ifBlank { null },
+            merchantName = field("merchant_name", "merchantName") ?: "Shop",
+            amountNgn = packet.amountNgn,
+            maskedAccountSuffix = field("masked_account_suffix") ?: payloadMsk,
+            sessionUuid = field("session_uuid", "session_uuid_v4") ?: packet.sessionUuid,
+            terminalId = field("terminal_id") ?: packet.terminalId,
+            recipientAccount = field("recipient_account", "account_number"),
+            recipientBankCode = field("recipient_bank_code", "bank_code"),
+            isPresence = packet.isPresence,
         )
     }
 }

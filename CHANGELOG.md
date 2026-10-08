@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.4.0] - 2026-10-08
+
+Brings the open SDKs in line with the CheckoutNow app that runs against Cheko Windows tills in production. No change to the packet format, signing, or verify endpoint — existing tills and servers keep working.
+
+### Fixed
+- **Android and iOS SDKs can now read Cheko tills.** They required the old `payload` envelope and failed on the compact `{p, alg, sig}` packet; they now expand both shapes (`BroadcastWire`)
+- Android and iOS SDKs no longer use an OS service-UUID scan filter, which missed many Windows POS adverts. They scan unfiltered and match the service UUID, service data, or advert name (`CHECKOUT`, `CHEKO`, `CP-`, `CN`)
+- Android and iOS SDKs no longer reject packets older than 10 minutes; a till session stays open until paid or cancelled and the server decides
+- Android and iOS SDKs treat a non-2xx status **or** `valid: false` as failure, read `error` / `message`, and accept a `data` wrapper and field aliases (`account_number`, `bank_code`, `session_uuid_v4`, `merchantName`)
+- Python `wire_to_verify_envelope` invented `account_info_public_display` (`***0000`) and dropped `session_kind`, breaking signatures for idle tills and tills that send no `msk`; it now matches the TypeScript SDK, `bank_api/ble_wire.py`, and the app
+- Python legacy-envelope default `signature_alg` is now `HMAC-SHA256`, matching the other SDKs
+- Python `encode_wire_envelope` writes `msk` and `k` only when the signed payload has them (output unchanged for `build_minimal_online_payload`)
+- Android SDK build: removed an invalid version on the core `maven-publish` plugin and added the missing Gradle wrapper
+
+### Added
+- Android/iOS receivers: packet taken from advert service/manufacturer data when embedded; otherwise a queued, one-at-a-time, **read-only** GATT peek (never notify, never bond), MTU 512 on Android, 12 s timeout, 4 s per-till cooldown
+- `resetSeenSessions()`, `verifyPacketJson()`, `verifyHeaders` config, `VerifiedPayment.isPresence`, and `BroadcastWire.terminalLabel()` on Android and iOS
+- Shared conformance vectors `tests/fixtures/wire_vectors.json`, checked by Python SDK, reference bank, TypeScript, Kotlin, and Swift tests
+- CI jobs that build and unit-test the Android and iOS SDKs
+- Specs/docs: how receivers find tills and read packets, POS advert recommendations, verify failure handling (HTTP 200 + `valid:false`), response aliases, and the CheckoutNow pay-at-shop UX (till picker, idle tills, push nudge, auto-select)
+
+### Changed (Android / iOS API)
+- `VerifiedPayment.amountNgn` is now a `Double` in naira taken from the signed packet (wire `amt` kobo ÷ 100), not the server's integer `amount_ngn`
+- `VerifiedPayment.maskedAccountSuffix` is now optional
+
 ## [1.3.1] - 2026-10-08
 
 First tagged public release.

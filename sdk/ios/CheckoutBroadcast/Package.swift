@@ -9,5 +9,6 @@ let package = Package(
     ],
     targets: [
         .target(name: "CheckoutBroadcast"),
+        .testTarget(name: "CheckoutBroadcastTests", dependencies: ["CheckoutBroadcast"]),
     ]
 )

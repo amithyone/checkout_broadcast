@@ -18,7 +18,7 @@ What production POS and CheckoutNow actually do:
 2. Wallet reads GATT → **`normalizeBleReadForVerify` / expand** → canonical envelope.
 3. Wallet POSTs expanded body to `/verify-broadcast` (CheckoutPay Laravel also expands if you POST compact wire).
 4. Use registry `recipient_account` / `recipient_bank_code` from the response.
-5. For wire packets, display/transfer amount = **`amount_ngn ÷ 100`** (kobo → Naira). Presence (`0` / `session_kind: presence`) → let the customer enter amount.
+5. Take the amount from the **signed packet**: wire `amt` is kobo, so transfer amount = `amt ÷ 100`. Presence (`0` / omitted / `session_kind: presence`) → let the customer enter amount.
 
 Do **not** assume “POST the GATT JSON byte-for-byte” unless your backend expands compact wire (CheckoutPay does).
 
@@ -26,7 +26,7 @@ Do **not** assume “POST the GATT JSON byte-for-byte” unless your backend exp
 
 ## Request (expanded envelope)
 
-No auth header. Content-Type: `application/json`.
+Content-Type: `application/json`. The body is self-authenticating (signed by the till), so the reference server needs no auth header. Wallets may send their usual customer session headers — CheckoutNow does, and your bank can require them for rate limiting and audit.
 
 ```json
 {
@@ -99,20 +99,27 @@ Compact wire (what is often on BLE) — expand before verify if the server does 
 
 | Field | Notes |
 |-------|--------|
-| `amount_ngn` | For wire/Cheko: **kobo** (divide by 100 for transfer UI). Presence: `0` |
+| `amount_ngn` | Echo of the signed amount (kobo for wire/Cheko). Receivers use the packet amount (`amt ÷ 100`) |
 | `session_kind` | `presence` or `pos_checkout` when server supports it |
+| `session_status` | Optional: `open` \| `paid` \| `cancelled` |
 | `recipient_*` | From **registry** — never trust BLE alone for payout account |
+
+Receivers should also accept the fields wrapped in `{ "data": { … } }` and these aliases: `merchantName`, `session_uuid_v4`, `account_number` (for `recipient_account`), `bank_code` (for `recipient_bank_code`). If `merchant_name` is missing, show "Shop".
 
 ---
 
-## Failure response (HTTP 200, `valid: false`)
+## Failure response
+
+Most failures are **HTTP 200 with `valid: false`**; some are 4xx (`422` invalid packet, `429` rate limit).
 
 ```json
 {
   "valid": false,
-  "error": "Missing timestamp_ms in payload"
+  "error": "Unknown terminal_id"
 }
 ```
+
+Receivers must treat **both** as failure: a non-2xx status, or `valid === false` (at the top level or inside `data`). Show `error` (or `message`) to the user. Closed sessions return `{ "valid": false, "error": "Session already paid", "session_status": "paid" }` — hide that till from the picker.
 
 ### Standard error strings
 
@@ -124,6 +131,7 @@ Compact wire (what is often on BLE) — expand before verify if the server does 
 | `Bank name mismatch` / `Bank name hash mismatch` | Display bank ≠ registry | Match dashboard settlement bank / msk |
 | `Unknown terminal_id` | Not registered | Register / enable Pay at shop |
 | `Session UUID already used (replay)` | Checkout session already verified | New checkout session from POS |
+| `Session already paid` | Session closed (`session_status: paid` / `cancelled`) | Customer already paid, or cashier cancelled |
 | `Pay at shop is not active for this merchant` | CheckoutPay only | Enable in merchant dashboard |
 | `Rate limit exceeded` | Too many verifies | Retry after `retry_after_seconds` |
 
@@ -131,13 +139,14 @@ Compact wire (what is often on BLE) — expand before verify if the server does 
 
 ## Receiver checklist (banking / wallet app)
 
-1. Scan GATT `cbbc0001` / read `cbbc0002`.
-2. Parse UTF-8 JSON → **`normalizeBleReadForVerify`** (expand compact `{p,alg,sig}`).
-3. Reject locally if `timestamp_ms` missing.
+1. Find tills and read `cbbc0002` as in [ble-transport.md](ble-transport.md#receiver-finding-tills-and-reading-the-packet) (unfiltered scan, read only, never pair).
+2. Parse UTF-8 JSON → **`normalizeBleReadForVerify`** (expand compact `{p,alg,sig}`). Skip sessions already handled.
+3. Don't reject on packet age locally — the server decides whether the session is still open.
 4. `POST` `{ payload, signature_alg, signature }` to `/verify-broadcast`.
-5. On success: pre-fill transfer from **server** `recipient_*` + merchant name.
-6. If `session_kind === "presence"` or `amount_ngn === 0`: ask customer for amount.
-7. If packet came from compact wire: treat `amount_ngn` as **kobo** (`÷ 100`) for UI/transfer.
+5. Failure = non-2xx **or** `valid: false`. Show `error` / `message`.
+6. On success: pre-fill transfer from **server** `recipient_*` + merchant name; amount from the packet (`amt ÷ 100`).
+7. Presence (`session_kind: presence`, or no / zero amount): ask the customer for the amount.
+8. Pay with `session_uuid` as the idempotency key and remark `Payment at {merchant_name}`.
 
 ## Sender checklist (POS)
 
