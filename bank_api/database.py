@@ -60,6 +60,12 @@ class BankDatabase:
 
                 CREATE INDEX IF NOT EXISTS idx_used_sessions_terminal
                     ON used_sessions(terminal_id);
+
+                CREATE TABLE IF NOT EXISTS usage_ok_count (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    ok_count INTEGER NOT NULL DEFAULT 0
+                );
+                INSERT OR IGNORE INTO usage_ok_count (id, ok_count) VALUES (1, 0);
                 """
             )
             self._ensure_terminal_columns(conn)
@@ -171,3 +177,20 @@ class BankDatabase:
             ).fetchone()["c"]
             sessions = conn.execute("SELECT COUNT(*) AS c FROM used_sessions").fetchone()["c"]
         return {"terminals": terminals, "sessions": sessions}
+
+    def increment_ok_count(self) -> int:
+        with self.connection() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO usage_ok_count (id, ok_count) VALUES (1, 0)"
+            )
+            conn.execute("UPDATE usage_ok_count SET ok_count = ok_count + 1 WHERE id = 1")
+            row = conn.execute("SELECT ok_count FROM usage_ok_count WHERE id = 1").fetchone()
+        return int(row["ok_count"] if row else 0)
+
+    def get_ok_count(self) -> int:
+        with self.connection() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO usage_ok_count (id, ok_count) VALUES (1, 0)"
+            )
+            row = conn.execute("SELECT ok_count FROM usage_ok_count WHERE id = 1").fetchone()
+        return int(row["ok_count"] if row else 0)

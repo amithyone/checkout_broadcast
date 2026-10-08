@@ -25,3 +25,9 @@ CREATE TABLE IF NOT EXISTS broadcast_used_sessions (
     CONSTRAINT fk_broadcast_sessions_terminal
         FOREIGN KEY (terminal_id) REFERENCES broadcast_terminals(terminal_id)
 );
+
+CREATE TABLE IF NOT EXISTS broadcast_usage (
+    id TINYINT PRIMARY KEY,
+    ok_count BIGINT NOT NULL DEFAULT 0
+);
+INSERT IGNORE INTO broadcast_usage (id, ok_count) VALUES (1, 0);

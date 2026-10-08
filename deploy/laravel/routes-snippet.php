@@ -7,6 +7,8 @@
  *
  * Route::prefix('broadcast')->group(function () {
  *     Route::get('/health', [BroadcastVerifyController::class, 'health']);
+ *     Route::get('/usage/public', [BroadcastVerifyController::class, 'usagePublic']);
+ *     Route::post('/usage/hit', [BroadcastVerifyController::class, 'usageHit']);
  *     Route::post('/verify-broadcast', [BroadcastVerifyController::class, 'verifyBroadcast']);
  *     Route::post('/terminals/register', [BroadcastVerifyController::class, 'registerTerminal']);
  *     // POS Settings “Test connection” / key sync (CheckoutPay production):

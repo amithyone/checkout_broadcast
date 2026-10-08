@@ -25,6 +25,22 @@ class BroadcastVerifyController extends Controller
         ]);
     }
 
+    public function usagePublic(): JsonResponse
+    {
+        return response()->json([
+            'ok' => true,
+            'ok_count' => $this->usageOkCount(),
+        ]);
+    }
+
+    public function usageHit(): JsonResponse
+    {
+        return response()->json([
+            'ok' => true,
+            'ok_count' => $this->incrementUsageOkCount(),
+        ]);
+    }
+
     public function verifyBroadcast(Request $request): JsonResponse
     {
         $key = 'broadcast-verify:'.$request->ip();
@@ -130,6 +146,7 @@ class BroadcastVerifyController extends Controller
         // idle beacons reuse / rotate sid for many phones.
         if (! $isPresence) {
             $this->ensureOpenSession($sessionUuid, $terminalId, $packetAmount);
+            $this->incrementUsageOkCount();
         }
 
         $maskedSuffix = $display['masked_account_suffix'] ?? $terminal->masked_account_suffix;
@@ -451,5 +468,43 @@ class BroadcastVerifyController extends Controller
         }
 
         return $data;
+    }
+
+    private function usageOkCount(): int
+    {
+        $row = DB::table('broadcast_usage')->where('id', 1)->first();
+
+        return (int) ($row->ok_count ?? 0);
+    }
+
+    private function incrementUsageOkCount(): int
+    {
+        DB::table('broadcast_usage')->insertOrIgnore(['id' => 1, 'ok_count' => 0]);
+        DB::table('broadcast_usage')->where('id', 1)->increment('ok_count');
+        $this->pingPublicUsage();
+
+        return $this->usageOkCount();
+    }
+
+    private function pingPublicUsage(): void
+    {
+        $url = rtrim((string) env('CHECKOUT_USAGE_STATS_URL', ''), '/');
+        if ($url === '') {
+            return;
+        }
+        try {
+            $ctx = stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => "Content-Type: application/json\r\n",
+                    'content' => '{}',
+                    'timeout' => 2,
+                    'ignore_errors' => true,
+                ],
+            ]);
+            @file_get_contents($url.'/usage/hit', false, $ctx);
+        } catch (\Throwable $e) {
+            // Verify must not fail if the public counter is down.
+        }
     }
 }

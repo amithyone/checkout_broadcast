@@ -61,6 +61,6 @@ PYTHONPATH="sdk/python:." python -m checkout_broadcast.cli demo-send --amount 25
 | Windows | Python + BLE | — |
 | Linux | Python + BLE | Python + BLE |
 | macOS | Simulated dev only | Web Bluetooth / iOS |
-| Android | Phase 2 | Android SDK (BLE scan) |
+| Android | Android SDK GATT send + hardware enroll | Android SDK (BLE scan) |
 | iOS | Phase 2 | iOS SDK (CoreBluetooth) |
 | Web | — | TypeScript / browser bundle |

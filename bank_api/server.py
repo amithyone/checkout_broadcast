@@ -51,6 +51,25 @@ def admin_auth(x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-
     require_admin_key(settings, x_admin_key)
 
 
+def ping_public_usage() -> None:
+    """Forward one anonymous ok to the OSS Vercel counter. Never fails verify."""
+    url = settings.usage_stats_url
+    if not url:
+        return
+    try:
+        import urllib.request
+
+        req = urllib.request.Request(
+            f"{url}/usage/hit",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=2)
+    except Exception:
+        logger.debug("CHECKOUT_USAGE_STATS_URL hit skipped", exc_info=True)
+
+
 class TerminalRegistration(BaseModel):
     terminal_id: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9._-]+$")
     signing_key: Optional[str] = Field(default=None, min_length=16, max_length=4096)
@@ -264,6 +283,9 @@ async def verify_broadcast(request: Request) -> dict[str, Any]:
         amount = int(tx.get("total_amount_ngn") or 0)
     except (TypeError, ValueError):
         amount = 0
+    if not presence:
+        db.increment_ok_count()
+        ping_public_usage()
     return VerifySuccess(
         merchant_name=terminal["merchant_name"],
         amount_ngn=0 if presence else amount,
@@ -274,6 +296,28 @@ async def verify_broadcast(request: Request) -> dict[str, Any]:
         recipient_account=terminal.get("account_number"),
         recipient_bank_code=terminal.get("recipient_bank_code"),
     ).model_dump()
+
+
+@app.get("/usage/public")
+def usage_public() -> dict[str, Any]:
+    """Badge-safe total: successful checkout verifies only. No merchant data."""
+    return {"ok": True, "ok_count": db.get_ok_count()}
+
+
+@app.post("/usage/hit")
+async def usage_hit(request: Request) -> dict[str, Any]:
+    """Banks that run their own verify: POST empty JSON after each successful checkout. Counts as 1."""
+    client_ip = request.client.host if request.client else "unknown"
+    if not verify_limiter.allow(f"usage:{client_ip}"):
+        retry = verify_limiter.retry_after(f"usage:{client_ip}")
+        return JSONResponse(
+            status_code=429,
+            content={"ok": False, "error": "Rate limit exceeded", "retry_after_seconds": retry},
+            headers={"Retry-After": str(retry)},
+        )
+    total = db.increment_ok_count()
+    ping_public_usage()
+    return {"ok": True, "ok_count": total}
 
 
 def main() -> None:

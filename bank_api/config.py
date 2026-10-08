@@ -15,6 +15,7 @@ class Settings:
     rate_limit_verify_per_minute: int
     require_https_sdk: bool
     bind_public: bool
+    usage_stats_url: str
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -32,6 +33,7 @@ class Settings:
             rate_limit_verify_per_minute=int(os.getenv("CHECKOUT_RATE_LIMIT_VERIFY", "120")),
             require_https_sdk=os.getenv("CHECKOUT_REQUIRE_HTTPS", "false").lower() == "true",
             bind_public=os.getenv("CHECKOUT_BIND_PUBLIC", "false").lower() == "true",
+            usage_stats_url=os.getenv("CHECKOUT_USAGE_STATS_URL", "").rstrip("/"),
         )
 
     @property

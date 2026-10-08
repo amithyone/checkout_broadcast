@@ -8,8 +8,9 @@ After checkout, a shop terminal broadcasts a **signed payment request** over Blu
 [![Release](https://img.shields.io/github/v/release/amithyone/checkout_broadcast)](https://github.com/amithyone/checkout_broadcast/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Discussions](https://img.shields.io/github/discussions/amithyone/checkout_broadcast)](https://github.com/amithyone/checkout_broadcast/discussions)
+[![Successful checkouts](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fcheckout-broadcast-stats.vercel.app%2Fusage%2Fpublic&query=%24.ok_count&label=successful%20checkouts&color=20ccb4)](https://amithyone.github.io/checkout_broadcast/)
 
-**Website:** [amithyone.github.io/checkout_broadcast](https://amithyone.github.io/checkout_broadcast/)
+**Website:** [amithyone.github.io/checkout_broadcast](https://amithyone.github.io/checkout_broadcast/). Anonymous checkout totals (no amounts) are on Vercel: [spec/public-usage-count.md](spec/public-usage-count.md), [usage-site/](usage-site/README.md).
 
 <!-- Demo: add a 30–60s screen recording as docs/assets/demo.gif (till broadcasts → phone pre-fills transfer) and embed it here. -->
 
@@ -75,6 +76,8 @@ Using Checkout Broadcast in a bank, wallet, or POS product? Open a pull request 
 - **Reference bank API** for banks to test before production rollout
 - Simulated transport for CI and local dev
 
+The protocol is **HTTP JSON + BLE bytes**, not a Laravel protocol. Python, Kotlin, Swift, TypeScript, PHP, Go, or anything else works if it matches [spec/ble-transport.md](spec/ble-transport.md) and [spec/verify-api.md](spec/verify-api.md). `deploy/laravel/` and `bank_api/` are example servers.
+
 **Implementers:** start with [spec/ble-transport.md](spec/ble-transport.md) and [docs/checkoutpay-integration.md](docs/checkoutpay-integration.md) — expand compact wire before `/verify-broadcast`.
 
 ## Quick start
@@ -133,7 +136,8 @@ checkout_broadcast/
 ├── bank_api/            # Reference bank verification server
 ├── deploy/              # Production deploy notes, Laravel verify controller
 ├── spec/                # Protocol, signing, BLE specs
-├── docs/                # Integration documentation and website
+├── docs/                # Integration docs + GitHub Pages landing (`docs/index.html`)
+├── usage-site/          # Vercel anonymous checkout counter
 ├── demos/               # Web receiver demo
 └── tests/               # Conformance & bank API tests
 ```

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1] - 2026-10-08
+
+### Added
+- Vercel public usage counter (`usage-site/`): `GET /usage/public`, `POST /usage/hit` with empty JSON. GitHub Pages landing reads the total; git does not store payments.
+- GitHub Pages landing: language-agnostic protocol, Android POS send, live successful-checkout count.
+- Reference bank API and Laravel example forward one `ok` to `CHECKOUT_USAGE_STATS_URL` after a successful checkout verify (not presence).
+
 ## [1.4.0] - 2026-10-08
 
 Brings the open SDKs in line with the CheckoutNow app that runs against Cheko Windows tills in production. No change to the packet format, signing, or verify endpoint — existing tills and servers keep working.

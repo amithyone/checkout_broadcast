@@ -1,0 +1,6 @@
+{
+  "name": "checkout-broadcast-stats",
+  "private": true,
+  "type": "module",
+  "description": "Anonymous successful-checkout counter for the Checkout Broadcast landing page"
+}

@@ -33,6 +33,16 @@ def test_health(client):
     assert client.get("/health").json()["status"] == "ok"
 
 
+def test_usage_hit_counts_one(client):
+    assert client.get("/usage/public").json()["ok_count"] == 0
+    first = client.post("/usage/hit", json={}).json()
+    assert first["ok"] is True
+    assert first["ok_count"] == 1
+    second = client.post("/usage/hit", json={}).json()
+    assert second["ok_count"] == 2
+    assert client.get("/usage/public").json()["ok_count"] == 2
+
+
 def test_register_requires_admin_key(client):
     response = client.post(
         "/terminals/register",
