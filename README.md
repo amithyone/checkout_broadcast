@@ -102,6 +102,7 @@ PYTHONPATH="sdk/python:." python -m checkout_broadcast.cli demo-send --amount 25
 
 | Audience | Guide |
 |----------|-------|
+| **Decision makers (banks, PTSPs, regulators)** | [docs/one-pager.md](docs/one-pager.md) |
 | **Production BLE wire (start here)** | [spec/ble-transport.md](spec/ble-transport.md) |
 | **CheckoutPay / CheckoutNow path** | [docs/checkoutpay-integration.md](docs/checkoutpay-integration.md) |
 | **Verify API contract** | [spec/verify-api.md](spec/verify-api.md) |
