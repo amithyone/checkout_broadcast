@@ -305,6 +305,7 @@
     .adopters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
     .adopters span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; }
     .adopters svg { color: var(--accent); }
+    [hidden] { display: none !important; }
     .usage-stat {
       margin-top: 28px; padding: 22px 24px; display: flex; align-items: center; gap: 16px;
     }
@@ -378,7 +379,7 @@
           <a href="#how">How it works</a>
           <a href="#who">Who it's for</a>
           <a href="#status">Status</a>
-          <a href="#stats">Stats</a>
+          <a href="#stats" class="stats-link" hidden>Stats</a>
           <a href="#faq">FAQ</a>
         </nav>
         <div class="right">
@@ -549,7 +550,7 @@
           <div class="step reveal">
             <span class="num-tile"><i data-lucide="radio"></i><span class="num">1</span></span>
             <h3>Till broadcasts</h3>
-            <p>A Windows/Linux till or handheld Android POS totals the sale, signs terminal ID, amount and a one-time session with Ed25519, and broadcasts compact <b>{p, alg, sig}</b> over Bluetooth LE.</p>
+            <p>A Windows or Linux till totals the sale, signs terminal ID, amount and a one-time session with Ed25519, and broadcasts compact <b>{p, alg, sig}</b> over Bluetooth LE.</p>
           </div>
           <div class="step reveal d1">
             <span class="num-tile"><i data-lucide="shield-check"></i><span class="num">2</span></span>
@@ -590,7 +591,7 @@
             <ul>
               <li><i data-lucide="circle-check"></i>Small add-on for Android or Windows/Linux POS apps</li>
               <li><i data-lucide="circle-check"></i>Most modern Android POS terminals have Bluetooth</li>
-              <li><i data-lucide="circle-check"></i>Python and Android SDKs send the same wire</li>
+              <li><i data-lucide="circle-check"></i>Python SDK sends today · Android POS send planned</li>
             </ul>
             <span class="more">POS integration guide <i data-lucide="arrow-right"></i></span>
           </a>
@@ -624,7 +625,7 @@
             <div class="cta reveal">
               <a class="btn primary" href="https://github.com/amithyone/checkout_broadcast/releases">Latest release <i data-lucide="arrow-right"></i></a>
             </div>
-            <div class="glass usage-stat reveal" id="stats">
+            <div class="glass usage-stat reveal" id="stats" hidden>
               <div>
                 <div class="n" id="ok-count">—</div>
               </div>
@@ -638,8 +639,8 @@
           <div class="glass strong status-list reveal d1">
             <div class="status-row"><span class="tile" style="background:#3776ab"><i data-lucide="terminal"></i></span><div class="meta"><b>Python SDK</b><span>Windows / Linux POS · send and receive</span></div><span class="badge ready">Ready</span></div>
             <div class="status-row"><span class="tile" style="background:#3178c6"><i data-lucide="globe"></i></span><div class="meta"><b>TypeScript SDK</b><span>Web Bluetooth receive</span></div><span class="badge ready">Ready</span></div>
-            <div class="status-row"><span class="tile" style="background:#16a34a"><i data-lucide="smartphone"></i></span><div class="meta"><b>Android module</b><span>Receive + handheld POS send · hardware enroll</span></div><span class="badge ready">Ready</span></div>
-            <div class="status-row"><span class="tile" style="background:#111827"><i data-lucide="smartphone"></i></span><div class="meta"><b>iOS Swift Package</b><span>Receive ready · send in progress</span></div><span class="badge wip">Receive</span></div>
+            <div class="status-row"><span class="tile" style="background:#16a34a"><i data-lucide="smartphone"></i></span><div class="meta"><b>Android module</b><span>Receive ready, reads Cheko tills · POS send planned</span></div><span class="badge wip">Receive</span></div>
+            <div class="status-row"><span class="tile" style="background:#111827"><i data-lucide="smartphone"></i></span><div class="meta"><b>iOS Swift Package</b><span>Receive ready, reads Cheko tills</span></div><span class="badge wip">Receive</span></div>
             <div class="status-row"><span class="tile" style="background:#059669"><i data-lucide="server"></i></span><div class="meta"><b>Reference bank API</b><span>FastAPI · any-language verify contract</span></div><span class="badge ready">Ready</span></div>
             <div class="status-row"><span class="tile" style="background:#ef4444"><i data-lucide="code"></i></span><div class="meta"><b>Laravel verify example</b><span>CheckoutPay drop-in · same JSON as Python</span></div><span class="badge prod">Production</span></div>
           </div>
@@ -702,7 +703,7 @@
           <a href="https://github.com/amithyone/checkout_broadcast/blob/main/spec/ble-transport.md">Spec</a>
           <a href="https://github.com/amithyone/checkout_broadcast/blob/main/SECURITY.md">Security</a>
           <a href="https://github.com/amithyone/checkout_broadcast/blob/main/docs/one-pager.md">One-pager</a>
-          <a href="#stats">Stats</a>
+          <a href="#stats" class="stats-link" hidden>Stats</a>
           <a href="https://github.com/amithyone/checkout_broadcast/discussions">Discussions</a>
         </nav>
         <span>MIT License</span>
@@ -715,7 +716,7 @@
     var MARQUEE = [
       ['terminal', '#3776ab', 'Python SDK'],
       ['globe', '#3178c6', 'TypeScript SDK'],
-      ['smartphone', '#16a34a', 'Android POS send'],
+      ['smartphone', '#16a34a', 'Android'],
       ['smartphone', '#111827', 'iOS'],
       ['server', '#059669', 'Reference bank API'],
       ['code', '#ef4444', 'Any-language verify'],
@@ -732,7 +733,7 @@
       ['What does it cost?', 'Nothing. It is MIT licensed. Banks, wallets and POS makers can use, modify and ship it without fees.'],
       ['How do we start a pilot?', 'Open a discussion on GitHub or email the maintainer. A typical pilot is one bank or wallet plus a handful of merchants on one POS model.'],
       ['Is this a Laravel protocol?', 'No. The protocol is compact BLE plus JSON verify. Use any language. The Laravel controller and Python bank_api are example servers.'],
-      ['Can Android POS terminals broadcast?', 'Yes. Handheld Android POS uses the same compact wire as Cheko. The bank enrolls the device hardware (TEE key + Play Integrity); BLE still only carries the signed checkout, not the full account.'],
+      ['Can Android POS terminals broadcast?', 'Not yet in the open SDK. Handheld Android POS send is planned and will use the same compact wire as Cheko. Today, tills send with the Python SDK on Windows or Linux. Android and iPhone apps can already receive.'],
       ['Where does the checkout count come from?', 'Only an enrolled verify server can increment it. The bank publishes a well-known file on its HTTPS hostname, the maintainer issues a secret token, and that server posts an empty ok after a successful checkout (not presence). A public list of Nigerian bank names would not stop spam — anyone can POST. Phones never ping it, and git never stores the payments.'],
     ];
 
@@ -776,18 +777,20 @@
     (function loadOkCount() {
       var eln = document.getElementById('ok-count');
       if (!eln) return;
+      // Section stays hidden unless the counter answers; a dead endpoint must not read as "0 checkouts".
       fetch('https://checkout-broadcast-stats.vercel.app/usage/public')
-        .then(function (r) { return r.json(); })
+        .then(function (r) { if (!r.ok) throw new Error('stats ' + r.status); return r.json(); })
         .then(function (d) {
-          if (d && typeof d.ok_count === 'number') {
-            eln.textContent = d.ok_count.toLocaleString();
-          }
+          if (!d || d.ok !== true || typeof d.ok_count !== 'number') return;
+          eln.textContent = d.ok_count.toLocaleString();
           var rep = document.getElementById('ok-reporters');
-          if (rep && d && Array.isArray(d.reporters) && d.reporters.length) {
+          if (rep && Array.isArray(d.reporters) && d.reporters.length) {
             rep.textContent = ' Reporters: ' + d.reporters.map(function (r) { return r.name; }).join(', ') + '.';
           }
+          document.getElementById('stats').hidden = false;
+          document.querySelectorAll('.stats-link').forEach(function (a) { a.hidden = false; });
         })
-        .catch(function () { eln.textContent = '0'; });
+        .catch(function () {});
     })();
 
     var reveals = document.querySelectorAll('.reveal');

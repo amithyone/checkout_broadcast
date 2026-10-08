@@ -155,13 +155,13 @@ docker compose up --build
 
 ```bash
 # Python (POS SDK)
-pip install "git+https://github.com/amithyone/checkout_broadcast.git@v1.4.0"
-pip install "checkout-broadcast[ble] @ git+https://github.com/amithyone/checkout_broadcast.git@v1.4.0"   # BLE on Windows/Linux
+pip install "git+https://github.com/amithyone/checkout_broadcast.git@v1.4.4"
+pip install "checkout-broadcast[ble] @ git+https://github.com/amithyone/checkout_broadcast.git@v1.4.4"   # BLE on Windows/Linux
 
 # Web / Node (banking app SDK)
 git clone https://github.com/amithyone/checkout_broadcast.git
 cd checkout_broadcast/sdk/typescript && npm ci && npm run build && npm pack
-npm install /path/to/checkout-broadcast-web-1.4.0.tgz   # in your app
+npm install /path/to/checkout-broadcast-web-1.4.4.tgz   # in your app
 ```
 
 Once published, these will become `pip install checkout-broadcast` and `npm install @checkout-broadcast/web`. See **[docs/publishing.md](docs/publishing.md)** for maintainer release steps (PyPI, npm, Maven).

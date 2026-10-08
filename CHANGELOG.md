@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.4] - 2026-10-08
+
+### Changed
+- Public usage counter deployed on Vercel (`checkout-broadcast-stats`, Upstash Redis)
+- Landing page: the checkout counter and its Stats links appear only when the counter answers, so an outage never shows "0"
+- Landing page and addon spec: Android POS **send** marked as planned (the open Android SDK receives only); Android and iOS rows note they read Cheko tills
+- Package versions synced to 1.4.4 (Python, npm, Android, reference bank API)
+
 ## [1.4.3] - 2026-10-08
 
 ### Changed

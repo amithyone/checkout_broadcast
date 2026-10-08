@@ -36,7 +36,7 @@ interface CheckoutBroadcastConfig {
 ## Platform Defaults (overridable)
 
 - Windows POS (Cheko) → `send`
-- Android / iOS **POS / handheld till** → `send`
+- Android / iOS **POS / handheld till** → `send` (planned; the open SDK sends from Python on Windows/Linux today)
 - Android / iOS **wallet / retail banking** → `receive` only
 - Web → `receive`
 

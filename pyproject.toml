@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "checkout-broadcast"
-version = "1.4.0"
+version = "1.4.4"
 description = "Open-source SDK for frictionless POS-to-banking-app payments in Nigeria"
 readme = "README.md"
 license = "MIT"
