@@ -4,13 +4,14 @@
 
 | Version | Supported |
 |---------|-----------|
-| 1.0.x   | Yes       |
+| 1.3.x   | Yes       |
+| < 1.3   | No        |
 
 ## Reporting a vulnerability
 
 **Do not open public GitHub issues for security vulnerabilities.**
 
-Email security reports to your project maintainer (configure before public launch) or use GitHub private vulnerability reporting if enabled.
+Report privately through [GitHub private vulnerability reporting](https://github.com/amithyone/checkout_broadcast/security/advisories/new), or email **amithyone@gmail.com** with the subject `checkout_broadcast security`.
 
 Include:
 - Description of the issue
@@ -24,10 +25,21 @@ We aim to acknowledge reports within 72 hours.
 
 Checkout Broadcast assumes:
 
-- **Integrity** of amount and terminal ID via HMAC-SHA256 (required)
-- **Replay protection** via timestamp + one-time session UUID (required)
+- **Integrity** of amount, terminal ID, and session via a signature over the canonical payload (required). Ed25519 is the production default: the POS holds the private key and the bank stores only the public key. HMAC-SHA256 (shared secret) is supported for legacy and demo setups.
+- **Replay protection** via timestamp + one-time session UUID (required). Presence (idle till, no amount) packets are not burned and must be re-signed with a fresh timestamp.
 - **Account confidentiality** is NOT provided over BLE — payloads are signed but not encrypted
 - **Recipient account resolution** must come from the bank registry, not from the BLE packet alone
+
+### What an attacker can and cannot do
+
+| Attack | Outcome |
+|--------|---------|
+| Fake till broadcasting its own account | Fails verify — terminal ID not registered, or signature doesn't match the registered key |
+| Change the amount in a captured packet | Fails verify — signature covers the amount |
+| Rebroadcast a captured checkout packet | Fails verify after first use — session UUID is burned; stale timestamps rejected |
+| Read packets nearby | Possible — only masked account suffix and amount are exposed |
+| Stolen POS device | Can broadcast until the terminal key is revoked at the bank — revoke on loss |
+| Two tills nearby | Customer sees both with verified merchant names and picks one; the app should show the verified name before PIN entry |
 
 ## Reference bank API — production warnings
 
